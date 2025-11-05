@@ -332,7 +332,9 @@ tableOutput("oneway_table_segment"),
 tableOutput("oneway_table_region"),
 tableOutput("two_way_table"),
 uiOutput("cat_plot_ui"),
-uiOutput("num_plot_ui")
+uiOutput("num_plot_ui_first"),
+uiOutput("num_plot_ui_second"),
+tableOutput("summary_stats")
 
         )
       )
@@ -613,51 +615,45 @@ output$cat_plot_ui <- renderUI({
     plotOutput("bar_stacked")
   }
 })
+# Helper function to avoid duplication
+render_numeric_plot <- function(num_var, plot_type, plot_id) {
+  output[[plot_id]] <- renderPlot({
+    req(subset_data(), num_var, input$num_group)
+    data <- subset_data()
+    fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
+    x_var <- fill_var  # for boxplot
 
+    if (plot_type == "hist") {
+      data |>
+        ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
+        geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
+        labs(x = num_var, y = "Count", fill = fill_var) +
+        theme_minimal()
+    } else if (plot_type == "box") {
+      data |>
+        ggplot(aes(x = .data[[x_var]], y = .data[[num_var]], fill = .data[[x_var]])) +
+        geom_boxplot() +
+        labs(x = x_var, y = num_var, fill = x_var) +
+        theme_minimal()
+    } else if (plot_type == "density") {
+      data |>
+        ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
+        geom_density(alpha = 0.5) +
+        labs(x = num_var, y = "Density", fill = fill_var) +
+        theme_minimal()
+    }
+  })
+}
 
+# Apply for first numeric variable
+render_numeric_plot(input$num_first, input$num_plot_type, "num_hist_first")
+render_numeric_plot(input$num_first, input$num_plot_type, "num_box_first")
+render_numeric_plot(input$num_first, input$num_plot_type, "num_density_first")
 
-
-# Histogram grouped by chosen variable (fill)
-output$num_hist <- renderPlot({
-  req(subset_data(), input$num_first, input$num_group)
-  data <- subset_data()
-  num_var <- input$num_first
-  fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
-
-  data |>
-    ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
-    geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
-    labs(x = num_var, y = "Count", fill = fill_var) +
-    theme_minimal()
-})
-
-# Boxplot grouped by selected variable
-output$num_box <- renderPlot({
-  req(subset_data(), input$num_first, input$num_group)
-  data <- subset_data()
-  num_var <- input$num_first
-  x_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
-
-  data |>
-    ggplot(aes(x = .data[[x_var]], y = .data[[num_var]], fill = .data[[x_var]])) +
-    geom_boxplot() +
-    labs(x = x_var, y = num_var, fill = x_var) +
-    theme_minimal()
-})
-
-# Density plot grouped by selected variable
-output$num_density <- renderPlot({
-  req(subset_data(), input$num_first, input$num_group)
-  data <- subset_data()
-  num_var <- input$num_first
-  fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
-
-  data |>
-    ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
-    geom_density(alpha = 0.5) +
-    labs(x = num_var, y = "Density", fill = fill_var) +
-    theme_minimal()
-})
+# Apply for second numeric variable
+render_numeric_plot(input$num_second, input$num_plot_type, "num_hist_second")
+render_numeric_plot(input$num_second, input$num_plot_type, "num_box_second")
+render_numeric_plot(input$num_second, input$num_plot_type, "num_density_second")
 
 
 
@@ -666,25 +662,83 @@ output$num_density <- renderPlot({
 
 
 
-output$num_plot_ui <- renderUI({
-  req(input$summary_type == "num",
-      input$explore_options == "plot",
-      !is.null(input$num_plot_type))
 
+
+# First numeric variable
+output$num_plot_ui_first <- renderUI({
+  req(input$summary_type == "num", input$explore_options == "plot", input$num_plot_type)
+  
   if (input$num_plot_type == "hist") {
-    plotOutput("num_hist")
+    plotOutput("num_hist_first")
   } else if (input$num_plot_type == "box") {
-    plotOutput("num_box")
+    plotOutput("num_box_first")
   } else if (input$num_plot_type == "density") {
-    plotOutput("num_density")
+    plotOutput("num_density_first")
+  }
+})
+
+# Second numeric variable
+output$num_plot_ui_second <- renderUI({
+  req(input$summary_type == "num", input$explore_options == "plot", input$num_plot_type)
+  
+  if (input$num_plot_type == "hist") {
+    plotOutput("num_hist_second")
+  } else if (input$num_plot_type == "box") {
+    plotOutput("num_box_second")
+  } else if (input$num_plot_type == "density") {
+    plotOutput("num_density_second")
   }
 })
 
 
-
-
-
-
+output$summary_stats <- renderTable({
+  req(subset_data(), input$summary_type == "num", input$explore_options == "table", input$num_group)
+  
+  data <- subset_data()
+  
+  # Decide grouping variable based on user selection
+  group_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
+  
+  # Numeric variables to summarize
+  num_vars <- c(input$num_first, input$num_second)
+  
+  # Summary by group
+  grouped_stats <- data |>
+    group_by(.data[[group_var]]) |>
+    summarise(
+      across(all_of(num_vars),
+             list(
+               Mean = ~mean(.x, na.rm = TRUE),
+               Median = ~median(.x, na.rm = TRUE),
+               SD = ~sd(.x, na.rm = TRUE),
+               Min = ~min(.x, na.rm = TRUE),
+               Max = ~max(.x, na.rm = TRUE)
+             ),
+             .names = "{col}_{fn}"
+      )
+    ) |>
+    ungroup()
+  
+  # Summary for overall (all data)
+  overall_stats <- data |>
+    summarise(
+      across(all_of(num_vars),
+             list(
+               Mean = ~mean(.x, na.rm = TRUE),
+               Median = ~median(.x, na.rm = TRUE),
+               SD = ~sd(.x, na.rm = TRUE),
+               Min = ~min(.x, na.rm = TRUE),
+               Max = ~max(.x, na.rm = TRUE)
+             ),
+             .names = "{col}_{fn}"
+      )
+    ) |>
+    mutate(!!group_var := "Overall") |>
+    select(all_of(group_var), everything())
+  
+  # Combine grouped and overall stats
+  bind_rows(grouped_stats, overall_stats)
+})
 
 }
 
