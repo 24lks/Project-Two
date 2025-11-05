@@ -1,0 +1,420 @@
+---
+title: "Project Two"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+library(tidyr)
+library(tidyverse)
+library(readxl)
+project2_1_ <- read_excel("project2 (1).xls")
+View(project2_1_)
+str(project2_1_)
+print(project2_1_)
+#Produce numerical and graphical summaries to investigate the data
+
+# One-way and Two-way contingency tables
+project2_1_ |>
+  #Regions
+  drop_na(Region) |>
+  group_by(Region) |>
+  summarize(count = n()) 
+
+ 
+
+#State
+project2_1_ |>
+ drop_na(`State`) |>
+  group_by(`State`) |>
+  summarize(count = n())
+
+#City
+project2_1_ |>
+ drop_na(`City`) |>
+  group_by(`City`) |>
+  summarize(count = n())
+
+
+#Segment
+project2_1_ |>
+ drop_na(`Segment`) |>
+  group_by(`Segment`) |>
+  summarize(count = n())
+
+
+#Category
+project2_1_ |>
+ drop_na(`Category`) |>
+  group_by(`Category`) |>
+  summarize(count = n())
+
+#Sub-Category
+project2_1_ |>
+ drop_na(`Sub-Category`) |>
+  group_by(`Sub-Category`) |>
+  summarize(count = n())
+
+#Product Name
+project2_1_ |>
+ drop_na(`Product Name`) |>
+  group_by(`Product Name`) |>
+  summarize(count = n())
+
+
+project2_1_ |>
+  drop_na(State, City) |>
+  group_by(State, City) |>
+  summarize(count = n())
+
+
+
+project2_1_ |>
+  drop_na(Region, State) |>
+  group_by(Region, State) |>
+  summarize(count = n())
+
+project2_1_ |>
+  drop_na(Category, `Sub-Category`) |>
+  group_by(Category, `Sub-Category`) |>
+  summarize(count = n())
+
+
+
+project2_1_ |>
+  drop_na(State, `Category`) |>
+  group_by(State, `Category`) |>
+  summarize(count = n())
+
+
+
+project2_1_ |>
+  drop_na(Region, `Category`) |>
+  group_by(Region, `Category`) |>
+  summarize(count = n())
+
+#Stacked Bar Graph
+ggplot(data = project2_1_ |>
+ group_by(Region, `Category`) |>
+ summarize(count = n()), aes(x = Region, y = count, fill = Category)) +
+ geom_bar(stat = "identity")+
+  labs(title = "Number of Items in Each Category Region Stacked",
+       x = "Region",
+       y = "Count") +
+  theme_minimal()
+
+#Stacked Bar Graph
+ggplot(data = project2_1_ |>
+  drop_na(State, Segment) |>
+  group_by(State, Segment) |>
+  summarize(count = n()), aes(x = State, y = count, fill = Segment)) +
+ geom_bar(stat = "identity")+
+  labs(title = "Number of each Segment by State",
+       x = "State",
+       y = "Count") +
+  theme_minimal()
+
+
+#Stacked Bar Graph
+ggplot(data = project2_1_ |>
+  drop_na(Segment, Category) |>
+  group_by(Segment, Category) |>
+  summarize(count = n()), aes(x = Segment, y = count, fill = Category)) +
+ geom_bar(stat = "identity")+
+  labs(title = "Number of Each Category by Segment",
+       x = "Segment",
+       y = "Count") +
+  theme_minimal()
+
+
+```
+
+Numeric Summaries
+
+```{r}
+ project2_1_ |>
+  group_by(Segment)|>
+  summarize(across(c( Sales, Quantity, Discount, Profit), 
+                   list("mean" = mean, "median" = median, "standard deviation"=sd), 
+                   .names = "{.fn}_{.col}"))
+
+ project2_1_ |>
+  group_by(State)|>
+  summarize(across(c( Sales, Quantity, Discount, Profit), 
+                   list("mean" = mean, "median" = median, "standard deviation"=sd), 
+                   .names = "{.fn}_{.col}"))
+ project2_1_ |>
+  group_by(City)|>
+  summarize(across(c( Sales, Quantity, Discount, Profit), 
+                   list("mean" = mean, "median" = median, "standard deviation"=sd), 
+                   .names = "{.fn}_{.col}"))
+ 
+  project2_1_ |>
+  group_by(Category)|>
+  summarize(across(c( Sales, Quantity, Discount, Profit), 
+                   list("mean" = mean, "median" = median, "standard deviation"=sd), 
+                   .names = "{.fn}_{.col}"))
+
+    project2_1_ |>
+  group_by(Region)|>
+  summarize(across(c( Sales, Quantity, Discount, Profit), 
+                   list("mean" = mean, "median" = median, "standard deviation"=sd), 
+                   .names = "{.fn}_{.col}"))
+    
+    
+    project2_1_ |>
+  group_by(`Sub-Category`)|>
+  summarize(across(c( Sales, Quantity, Discount, Profit), 
+                   list("mean" = mean, "median" = median, "standard deviation"=sd), 
+                   .names = "{.fn}_{.col}"))
+    
+    #Create a histogram-Distribution of Age by Sex
+
+ggplot(project2_1_ , aes(x = Sales, fill = Region)) +
+  geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
+  labs(
+    title = "Distribution Sales by Region",
+    x = "Sales",
+    y = "Count",
+    fill = "Region"
+  )
+ggplot(project2_1_, aes(x = Discount, fill = Segment)) +
+  geom_density(alpha = 0.5, position = "dodge") +
+  labs(
+    title = "Distribution Sales by Region",
+    x = "Discont",
+    y = "Count",
+    fill = "Segment"
+  )
+
+ggplot(project2_1_, aes(x = Quantity, fill = Category)) +
+  geom_density(alpha = 0.5, position = "dodge") +
+  labs(
+    title = "Distribution Quantity by Category",
+    x = "Quantity",
+    y = "Count",
+    fill = "Category"
+  )
+```
+
+##Shiny App Creation
+
+```{r}
+library(shiny)
+library(shinyalert)
+library(tidyverse)
+
+source("helpers.R")
+
+# Load sample data outside the UI
+my_sample <- readxl("project2_1_")
+
+# Define UI
+ui <- fluidPage(
+  "Add a title panel here!",
+  sidebarLayout(
+    sidebarPanel(
+      h2("Select Region:"),
+      selectInput(
+        inputId = "cat_region",
+        label = "Region",
+        choices = list(
+          "Central",
+          "East",
+          "South",
+          "West",
+        ),
+        selected = "Central"
+      ),
+      h2("Select Segment:"),
+      selectInput(
+        inputId = "cat_segment",
+        label = "Segment",
+        choices = list(
+          "Consumer",
+          "Corporate",
+          "Home Office",
+        ),
+        selected = "Consumer"
+      ),
+       h2("Select Numeric Variable:"),
+      selectInput(
+        inputId = "num_first",
+        label = "Numeric Variable",
+        choices = list(
+          "Sales",
+          "Quantity",
+          "Discount",
+          "Profit",
+        ),
+        selected = "Sales",
+      ),
+       if(num_first="Sales") {
+         sliderInput("Sales", "Set value range", min = 0, max = 22700
+, value = 20)
+       } else_if(num_first="Quantity"){
+          sliderInput("Quantity", "Set value range", min = 1, max = 14
+, value = 1)
+       }else_if(num_first="Discount"){
+          sliderInput("Quantity", "Set value range", min = 0, max = .8
+, value = .05) else{
+   sliderInput("Quantity", "Set value range", min = -6600, max = 8400, value = 20))
+},
+  
+      
+      
+    mainPanel(
+      plotOutput("corr_plot"),
+      conditionalPanel("input.corr_sample > 0",
+                       h2("Guess the correlation!"),
+                       column(6, numericInput("corr_guess", "", value = 0, min = -1, max = 1)),
+                       column(6, actionButton("corr_submit", "Check Your Guess!"))
+      )
+    )
+  )
+)
+
+# Define server
+server <- function(input, output, session) {
+  
+  sample_corr <- reactiveValues(corr_data = NULL, corr_truth = NULL)
+  
+  numeric_vars <- c("Total person's income", "Water cost", "Electricity cost",
+                    "Gas cost", "Gross rent as a percentage of income", 
+                    "Property taxes", "Property value", "Usual hours worked per week",
+                    "Travel time to work")
+  
+  observeEvent(input$x_var, {
+    corr_x <- input$x_var
+    corr_y <- input$y_var
+    choices <- numeric_vars
+    
+    if(corr_x %in% choices){
+      choices <- choices[choices != corr_x]
+    }
+    
+    new_y <- if(corr_y %in% choices) corr_y else choices[1]
+    
+    updateSelectInput(session, "y_var", choices = choices, selected = new_y)
+  })
+  
+  observeEvent(input$corr_sample, {
+    
+    if (input$hhl_corr == "All") {
+      hhl_sub <- HHLvals
+    } else if (input$hhl_corr == "English Only") {
+      hhl_sub <- HHLvals["1"]
+    } else if (input$hhl_corr == "Spanish") {
+      hhl_sub <- HHLvals["2"]
+    } else {
+      hhl_sub <- HHLvals[c("0", "3", "4", "5")]
+    }
+    
+    if (input$fs_corr == "All") {
+      fs_sub <- FSvals
+    } else if (input$fs_corr == "Yes") {
+      fs_sub <- FSvals["1"]
+    } else {
+      fs_sub <- FSvals["2"]
+    }
+    
+    if (input$schl_corr == "All") {
+      schl_sub <- SCHLvals
+    } else if (input$schl_corr == "High School not Completed") {
+      schl_sub <- SCHLvals[c("0","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15")]
+    } else if (input$schl_corr == "High School or GED") {
+      schl_sub <- SCHLvals[as.character(16:19)]
+    } else {
+      schl_sub <- SCHLvals[as.character(20:24)]
+    }
+    
+    corr_vars <- c(input$x_var, input$y_var)
+    name_map <- c(
+      "Total person's income" = "PINCP",
+      "Water cost" = "WATP",
+      "Electricity cost" = "ELEP",
+      "Gas cost" = "GASP",
+      "Gross rent as a percentage of income" = "GRPIP",
+      "Property taxes" = "TAXAMT",
+      "Property value" = "VALP",
+      "Usual hours worked per week" = "WKHP",
+      "Travel time to work" = "JWMNP"
+    )
+    
+    corr_vars <- c(name_map[input$x_var], name_map[input$y_var])
+    subsetted_data <- my_sample %>%
+      filter(HHLfac %in% hhl_sub,
+             FSfac %in% fs_sub,
+             SCHLfac %in% schl_sub)
+    
+    if ("WKHP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(WKHP > 0)
+    if ("VALP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(!is.na(VALP))
+    if ("TAXAMT" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(!is.na(TAXAMT))
+    if ("GRPIP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(GRPIP > 0)
+    if ("GASP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(GASP > 0)
+    if ("ELEP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(ELEP > 0)
+    if ("WATP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(WATP > 0)
+    if ("PINCP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(AGEP > 18)
+    if ("JWMNP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(!is.na(JWMNP))
+    
+    
+    output$corr_plot <- renderPlot({
+      validate(
+        need(!is.null(sample_corr$corr_data), 
+             "Please select your variables, subset, and click the 'Get a Sample!' button.")
+      )
+      
+      x_col <- name_map[[isolate(input$x_var)]]
+      y_col <- name_map[[isolate(input$y_var)]]
+      
+      ggplot(sample_corr$corr_data, aes_string(x = x_col, y = y_col)) +
+        geom_point() +
+        labs(
+          x = isolate(input$x_var),
+          y = isolate(input$y_var),
+          title = "Scatter plot of selected variables"
+        ) +
+        theme_minimal()
+    })
+    index <- sample(
+      1:nrow(subsetted_data),
+      size = input$corr_n,
+      replace = TRUE,
+      prob = subsetted_data$PWGTP / sum(subsetted_data$PWGTP)
+    )
+    
+    sample_corr$corr_data <- subsetted_data[index, ]
+    sample_corr$corr_truth <- cor(sample_corr$corr_data |> select(all_of(corr_vars)))[1, 2]
+  })
+  
+  observeEvent(input$corr_submit, {
+    close <- abs(input$corr_guess - sample_corr$corr_truth) <= .05
+    if(close){
+      shinyalert(title = "Nicely done!",
+                 paste0("The sample correlation is ", 
+                        round(sample_corr$corr_truth, 4), 
+                        "."),
+                 type = "success")
+    } else {
+      if(input$corr_guess > sample_corr$corr_truth){
+        shinyalert(title = "Try again!", "Try guessing a lower value.")
+      } else {
+        shinyalert(title = "Try again!", "Try guessing a higher value.")
+      }
+    }
+  })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+
+```
