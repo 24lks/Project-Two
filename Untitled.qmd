@@ -229,8 +229,7 @@ ui <- fluidPage(
           "Central",
           "East",
           "South",
-          "West",
-          "Select All"
+          "West"
         ),
         selected = "Central"
       ),
@@ -241,8 +240,7 @@ ui <- fluidPage(
         choices = list(
           "Consumer",
           "Corporate",
-          "Home Office",
-          "Select All"
+          "Home Office"
 
         ),
         selected = "Consumer"
@@ -344,37 +342,7 @@ tableOutput("summary_stats")
 
 # Define server
 server <- function(input, output, session) {
-  observeEvent(input$cat_region, {
-  # If "Select All" is checked, select all regions
-  if ("Select All" %in% input$cat_region) {
-    updateCheckboxGroupInput(session, "cat_region",
-                             selected = c("Select All", "Central", "East", "South", "West"))
-  } else {
-    # If all others are selected manually, also include "Select All"
-    all_regions <- c("Central", "East", "South", "West")
-    if (all(all_regions %in% input$cat_region)) {
-      updateCheckboxGroupInput(session, "cat_region",
-                               selected = c("Select All", all_regions))
-    }
-  }
-})
-  
-   observeEvent(input$cat_segment, {
-  # If "Select All" is checked, select all segments
-  if ("Select All" %in% input$cat_segment) {
-    updateCheckboxGroupInput(session, "cat_segment",
-                             selected = c("Select All", "Consumer", "Corporate", "Home Office"))
-  } else {
-    # If all others are selected manually, also include "Select All"
-    all_segments <- c("Consumer", "Corporate", "Home Office")
-    if (all(all_segments%in% input$cat_segment)) {
-      updateCheckboxGroupInput(session, "cat_segment",
-                               selected = c("Select All", all_segments))
-    }
-  }
-})
-  
-  
+
 
   # Dynamic slider based on numeric variable
   output$num_first_slider <- renderUI({
@@ -644,17 +612,12 @@ render_numeric_plot <- function(num_var, plot_type, plot_id) {
     }
   })
 }
+observe({
+  req(input$num_plot_type, input$num_first, input$num_second)
 
-# Apply for first numeric variable
-render_numeric_plot(input$num_first, input$num_plot_type, "num_hist_first")
-render_numeric_plot(input$num_first, input$num_plot_type, "num_box_first")
-render_numeric_plot(input$num_first, input$num_plot_type, "num_density_first")
-
-# Apply for second numeric variable
-render_numeric_plot(input$num_second, input$num_plot_type, "num_hist_second")
-render_numeric_plot(input$num_second, input$num_plot_type, "num_box_second")
-render_numeric_plot(input$num_second, input$num_plot_type, "num_density_second")
-
+  render_numeric_plot(input$num_first, input$num_plot_type, paste0("num_", input$num_plot_type, "_first"))
+  render_numeric_plot(input$num_second, input$num_plot_type, paste0("num_", input$num_plot_type, "_second"))
+})
 
 
 
@@ -733,7 +696,7 @@ output$summary_stats <- renderTable({
              .names = "{col}_{fn}"
       )
     ) |>
-    mutate(!!group_var := "Overall") |>
+    mutate(!!group_var := "Overall For Your Selected Subset") |>
     select(all_of(group_var), everything())
   
   # Combine grouped and overall stats
