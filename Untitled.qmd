@@ -8,7 +8,7 @@ editor: visual
 
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
-## Running Code
+## Running Codef
 
 When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
@@ -16,6 +16,7 @@ When you click the **Render** button a document will be generated that includes 
 library(tidyr)
 library(tidyverse)
 library(readxl)
+library(DT)
 project2_1_ <- read_excel("project2 (1).xls")
 View(project2_1_)
 str(project2_1_)
@@ -206,16 +207,14 @@ ggplot(project2_1_, aes(x = Quantity, fill = Category)) +
 ```
 
 ##Shiny App Creation
-
 ```{r}
 library(shiny)
 library(shinyalert)
 library(tidyverse)
-
-source("helpers.R")
+library(readxl)
 
 # Load sample data outside the UI
-my_sample <- readxl("project2_1_")
+my_sample <- read_excel("project2 (1).xls")
 
 # Define UI
 ui <- fluidPage(
@@ -223,7 +222,7 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       h2("Select Region:"),
-      selectInput(
+     checkboxGroupInput(
         inputId = "cat_region",
         label = "Region",
         choices = list(
@@ -231,21 +230,24 @@ ui <- fluidPage(
           "East",
           "South",
           "West",
+          "Select All"
         ),
         selected = "Central"
       ),
       h2("Select Segment:"),
-      selectInput(
+     checkboxGroupInput(
         inputId = "cat_segment",
         label = "Segment",
         choices = list(
           "Consumer",
           "Corporate",
           "Home Office",
+          "Select All"
+
         ),
         selected = "Consumer"
       ),
-       h2("Select Numeric Variable:"),
+      h2("Select First Numeric Variable:"),
       selectInput(
         inputId = "num_first",
         label = "Numeric Variable",
@@ -253,30 +255,86 @@ ui <- fluidPage(
           "Sales",
           "Quantity",
           "Discount",
-          "Profit",
+          "Profit"
         ),
-        selected = "Sales",
+        selected = "Sales"
       ),
-       if(num_first="Sales") {
-         sliderInput("Sales", "Set value range", min = 0, max = 22700
-, value = 20)
-       } else_if(num_first="Quantity"){
-          sliderInput("Quantity", "Set value range", min = 1, max = 14
-, value = 1)
-       }else_if(num_first="Discount"){
-          sliderInput("Quantity", "Set value range", min = 0, max = .8
-, value = .05) else{
-   sliderInput("Quantity", "Set value range", min = -6600, max = 8400, value = 20))
-},
-  
-      
-      
+
+      # Dynamic slider #1 goes here
+      uiOutput("num_first_slider"),
+     
+     
+      h2("Select Second Numeric Variable:"),
+      selectInput(
+        inputId = "num_second",
+        label = "Numeric Variable",
+        choices = list(
+          "Sales",
+          "Quantity",
+          "Discount",
+          "Profit"
+        ),
+        selected = "Sales"
+      ),
+        # Dynamic slider #2 goes here
+      uiOutput("num_second_slider"),
+     
+     
+
+      actionButton("subset_btn", "Subset Data")
+    ),
+
     mainPanel(
-      plotOutput("corr_plot"),
-      conditionalPanel("input.corr_sample > 0",
-                       h2("Guess the correlation!"),
-                       column(6, numericInput("corr_guess", "", value = 0, min = -1, max = 1)),
-                       column(6, actionButton("corr_submit", "Check Your Guess!"))
+      tabsetPanel(
+        tabPanel(
+          title = "About My App!",
+          h3("Welcome to the Superstore Sales App!"),
+          p("This dataset gives insights on online orders of a US superstore from 2014-2018."),
+          p("In the sidebar you have widgets that allow you to subset the data. In the app main panel Data Download tab you can download the data or data subset. In the Data Exploration tab you can obtain numeric and graphical summaries of the data."),
+          tags$a(href = "https://www.kaggle.com/datasets/juhi1994/superstore/discussion?sort=hotness", "Link to data source")
+        ),
+        tabPanel(
+          title = "Data Download",
+          h3("Dataset on Online Orders of a US Superstore from 2014-2018.")
+        ),
+        tabPanel(
+          title = "Data Exploration",
+          h3("Here you can explore the data with numeric and graphical summaries!"),
+          radioButtons(
+            inputId = "summary_type",
+            label = "Choose summary type:",
+            choices = c("Categorical" = "cat", "Numeric" = "num"),
+            selected = "cat"
+          ),
+
+          # Let user choose what they want to see
+            radioButtons(
+            inputId = "explore_options",
+            label = "Select what to display:",
+            choices = c("Table" = "table", "Plot" = "plot"),
+            selected = NULL
+          ),
+
+          
+          # Dynamic UI for table/plot controls (radio buttons, checkboxes, etc.)
+uiOutput("explore_controls"),
+
+# Placeholders for conditional "Group by" selectors
+uiOutput("cat_group_ui"),  # Only appears if categorical stacked bar is selected
+uiOutput("num_group_ui"),  # Only appears if numeric boxplot is selected
+
+# Placeholder for the actual outputs
+uiOutput("explore_outputs"),
+
+
+# Placeholders for tables and plots
+tableOutput("oneway_table_segment"),
+tableOutput("oneway_table_region"),
+tableOutput("two_way_table"),
+uiOutput("cat_plot_ui"),
+uiOutput("num_plot_ui")
+
+        )
       )
     )
   )
@@ -284,137 +342,352 @@ ui <- fluidPage(
 
 # Define server
 server <- function(input, output, session) {
-  
-  sample_corr <- reactiveValues(corr_data = NULL, corr_truth = NULL)
-  
-  numeric_vars <- c("Total person's income", "Water cost", "Electricity cost",
-                    "Gas cost", "Gross rent as a percentage of income", 
-                    "Property taxes", "Property value", "Usual hours worked per week",
-                    "Travel time to work")
-  
-  observeEvent(input$x_var, {
-    corr_x <- input$x_var
-    corr_y <- input$y_var
-    choices <- numeric_vars
-    
-    if(corr_x %in% choices){
-      choices <- choices[choices != corr_x]
+  observeEvent(input$cat_region, {
+  # If "Select All" is checked, select all regions
+  if ("Select All" %in% input$cat_region) {
+    updateCheckboxGroupInput(session, "cat_region",
+                             selected = c("Select All", "Central", "East", "South", "West"))
+  } else {
+    # If all others are selected manually, also include "Select All"
+    all_regions <- c("Central", "East", "South", "West")
+    if (all(all_regions %in% input$cat_region)) {
+      updateCheckboxGroupInput(session, "cat_region",
+                               selected = c("Select All", all_regions))
     }
-    
-    new_y <- if(corr_y %in% choices) corr_y else choices[1]
-    
-    updateSelectInput(session, "y_var", choices = choices, selected = new_y)
+  }
+})
+  
+   observeEvent(input$cat_segment, {
+  # If "Select All" is checked, select all segments
+  if ("Select All" %in% input$cat_segment) {
+    updateCheckboxGroupInput(session, "cat_segment",
+                             selected = c("Select All", "Consumer", "Corporate", "Home Office"))
+  } else {
+    # If all others are selected manually, also include "Select All"
+    all_segments <- c("Consumer", "Corporate", "Home Office")
+    if (all(all_segments%in% input$cat_segment)) {
+      updateCheckboxGroupInput(session, "cat_segment",
+                               selected = c("Select All", all_segments))
+    }
+  }
+})
+  
+  
+
+  # Dynamic slider based on numeric variable
+  output$num_first_slider <- renderUI({
+    req(input$num_first)
+    if (input$num_first == "Sales") {
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = 0, max = 22700, value = c(0, 22700))
+    } else if (input$num_first == "Quantity") {
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = 1, max = 14, value = c(1, 14))
+    } else if (input$num_first == "Discount") {
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = 0, max = 0.8, value = c(0, 0.8))
+    } else {  # Profit
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = -6600, max = 8400, value = c(-6600, 8400))
+    }
   })
   
-  observeEvent(input$corr_sample, {
-    
-    if (input$hhl_corr == "All") {
-      hhl_sub <- HHLvals
-    } else if (input$hhl_corr == "English Only") {
-      hhl_sub <- HHLvals["1"]
-    } else if (input$hhl_corr == "Spanish") {
-      hhl_sub <- HHLvals["2"]
-    } else {
-      hhl_sub <- HHLvals[c("0", "3", "4", "5")]
+   # Dynamic slider based on numeric variable
+  output$num_second_slider <- renderUI({
+    req(input$num_second)
+    if (input$num_second == "Sales") {
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = 0, max = 22700, value = c(0, 22700))
+    } else if (input$num_second == "Quantity") {
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = 1, max = 14, value = c(1, 14))
+    } else if (input$num_second == "Discount") {
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = 0, max = 0.8, value = c(0, 0.8))
+    } else {  # Profit
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = -6600, max = 8400, value = c(-6600, 8400))
     }
-    
-    if (input$fs_corr == "All") {
-      fs_sub <- FSvals
-    } else if (input$fs_corr == "Yes") {
-      fs_sub <- FSvals["1"]
-    } else {
-      fs_sub <- FSvals["2"]
-    }
-    
-    if (input$schl_corr == "All") {
-      schl_sub <- SCHLvals
-    } else if (input$schl_corr == "High School not Completed") {
-      schl_sub <- SCHLvals[c("0","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15")]
-    } else if (input$schl_corr == "High School or GED") {
-      schl_sub <- SCHLvals[as.character(16:19)]
-    } else {
-      schl_sub <- SCHLvals[as.character(20:24)]
-    }
-    
-    corr_vars <- c(input$x_var, input$y_var)
-    name_map <- c(
-      "Total person's income" = "PINCP",
-      "Water cost" = "WATP",
-      "Electricity cost" = "ELEP",
-      "Gas cost" = "GASP",
-      "Gross rent as a percentage of income" = "GRPIP",
-      "Property taxes" = "TAXAMT",
-      "Property value" = "VALP",
-      "Usual hours worked per week" = "WKHP",
-      "Travel time to work" = "JWMNP"
-    )
-    
-    corr_vars <- c(name_map[input$x_var], name_map[input$y_var])
-    subsetted_data <- my_sample %>%
-      filter(HHLfac %in% hhl_sub,
-             FSfac %in% fs_sub,
-             SCHLfac %in% schl_sub)
-    
-    if ("WKHP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(WKHP > 0)
-    if ("VALP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(!is.na(VALP))
-    if ("TAXAMT" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(!is.na(TAXAMT))
-    if ("GRPIP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(GRPIP > 0)
-    if ("GASP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(GASP > 0)
-    if ("ELEP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(ELEP > 0)
-    if ("WATP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(WATP > 0)
-    if ("PINCP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(AGEP > 18)
-    if ("JWMNP" %in% corr_vars) subsetted_data <- subsetted_data %>% filter(!is.na(JWMNP))
-    
-    
-    output$corr_plot <- renderPlot({
-      validate(
-        need(!is.null(sample_corr$corr_data), 
-             "Please select your variables, subset, and click the 'Get a Sample!' button.")
+  })
+  
+
+  # Reactive subset
+  subset_data <- eventReactive(input$subset_btn, {
+    req(input$num_first_slider)
+
+    data <- my_sample %>%
+      filter(Region %in% input$cat_region,
+             Segment %in% input$cat_segment)
+
+    num_var <- input$num_first
+    slider_vals <- input$num_first_slider
+
+    data <- data %>%
+      filter(.data[[num_var]] >= slider_vals[1],
+             .data[[num_var]] <= slider_vals[2])
+
+    data
+  })
+
+output$explore_controls <- renderUI({
+  req(input$explore_options)  # Make sure user has selected table or plot
+
+  ui_list <- list()
+  
+  # Table controls
+  if ("table" %in% input$explore_options) {
+    if (input$summary_type == "cat") {
+      ui_list <- append(ui_list, list(
+        checkboxGroupInput("table_type_cat", "Choose type(s) of table:",
+                           choices = c("One-way table" = "one_way",
+                                       "Two-way table" = "two_way"),
+                           selected = "one_way"))
       )
-      
-      x_col <- name_map[[isolate(input$x_var)]]
-      y_col <- name_map[[isolate(input$y_var)]]
-      
-      ggplot(sample_corr$corr_data, aes_string(x = x_col, y = y_col)) +
-        geom_point() +
-        labs(
-          x = isolate(input$x_var),
-          y = isolate(input$y_var),
-          title = "Scatter plot of selected variables"
-        ) +
-        theme_minimal()
-    })
-    index <- sample(
-      1:nrow(subsetted_data),
-      size = input$corr_n,
-      replace = TRUE,
-      prob = subsetted_data$PWGTP / sum(subsetted_data$PWGTP)
-    )
-    
-    sample_corr$corr_data <- subsetted_data[index, ]
-    sample_corr$corr_truth <- cor(sample_corr$corr_data |> select(all_of(corr_vars)))[1, 2]
-  })
-  
-  observeEvent(input$corr_submit, {
-    close <- abs(input$corr_guess - sample_corr$corr_truth) <= .05
-    if(close){
-      shinyalert(title = "Nicely done!",
-                 paste0("The sample correlation is ", 
-                        round(sample_corr$corr_truth, 4), 
-                        "."),
-                 type = "success")
-    } else {
-      if(input$corr_guess > sample_corr$corr_truth){
-        shinyalert(title = "Try again!", "Try guessing a lower value.")
-      } else {
-        shinyalert(title = "Try again!", "Try guessing a higher value.")
-      }
+    } else if (input$summary_type == "num") {
+      ui_list <- append(ui_list, list(
+        checkboxGroupInput("table_type_num", "Choose summary statistics:",
+                           choices = c("Mean" = "mean",
+                                       "Median" = "median",
+                                       "Standard Deviation" = "sd"),
+                           selected = c("mean", "median"))
+      ))
     }
-  })
+  }
+
+  # Plot controls
+  if ("plot" %in% input$explore_options) {
+    if (input$summary_type == "cat") {
+      # Radio buttons for categorical plots
+      ui_list <- append(ui_list, list(
+        radioButtons("cat_plot_type", "Choose plot type:",
+                     choices = c("Bar Chart" = "bar", "Stacked Bar Chart" = "stacked"),
+                     selected = "bar"),
+        # Conditional Group by selector for stacked bars
+        uiOutput("cat_group_ui")
+      ))
+    } else if (input$summary_type == "num") {
+      # Radio buttons for numeric plots
+      ui_list <- append(ui_list, list(
+        radioButtons("num_plot_type", "Choose plot type:",
+                     choices = c("Histogram" = "hist", "Boxplot" = "box", "Density Plot" = "density"),
+                     selected = "hist"),
+        # Conditional Group by selector for boxplots
+        uiOutput("num_group_ui")
+      ))
+    }
+  }
+
+  do.call(tagList, ui_list)
+})
+
+
+
+
+# Conditional Group by UI for categorical plots
+output$cat_group_ui <- renderUI({
+  req(input$cat_plot_type)
+  if (input$cat_plot_type == "stacked") {
+    selectInput("cat_group", "Group by:",
+                choices = c("Selected Regions", "Selected Segments"),
+                selected = "Selected Regions")
+  }
+})
+
+# Conditional Group by UI for numeric plots
+output$num_group_ui <- renderUI({
+  req(input$num_plot_type)
+  if (input$num_plot_type == "box") {
+    selectInput("num_group", "Group by:",
+                choices = c("Selected Regions", "Selected Segments"),
+                selected = "Selected Regions")
+  }
+})
+#Categorical Table Outputs 
+
+# ONE-WAY tables
+output$oneway_table_segment <- renderTable({
+  req(subset_data())
+  req(input$summary_type == "cat",
+      input$explore_options == "table",
+      "one_way" %in% input$table_type_cat)
+  
+  data <- subset_data()
+  
+  data |>
+    count(Segment) |>
+    rename(Count = n)
+})
+
+output$oneway_table_region <- renderTable({
+  req(subset_data())
+  req(input$summary_type == "cat",
+      input$explore_options == "table",
+      "one_way" %in% input$table_type_cat)
+  
+  data <- subset_data()
+  
+  data %>%
+    count(Region) %>%
+    rename(Count = n)
+})
+
+
+# TWO-WAY table
+output$two_way_table <- renderTable({
+  req(subset_data())
+  req(input$summary_type == "cat",
+      input$explore_options == "table",
+    "two_way" %in% input$table_type_cat)
+  
+  data <- subset_data()
+  
+  data %>%
+    count(Region, Segment) %>%
+    pivot_wider(
+      names_from = Segment,
+      values_from = n,
+      values_fill = 0
+    )
+})
+
+# REGULAR bar for Region
+output$bar_region <- renderPlot({
+  req(subset_data())
+  data <- subset_data()
+
+  data |>
+    count(Region) |>
+    ggplot(aes(x = Region, y = n)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(x = "Region", y = "Count") +
+    theme_minimal()
+})
+
+# REGULAR bar for Segment
+output$bar_segment <- renderPlot({
+  req(subset_data())
+  data <- subset_data()
+
+  data |>
+    count(Segment) |>
+    ggplot(aes(x = Segment, y = n)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(x = "Segment", y = "Count") +
+    theme_minimal()
+})
+
+# STACKED bar with user choice
+output$bar_stacked <- renderPlot({
+  req(subset_data(), input$cat_group)
+  data <- subset_data()
+
+  fill_var <- ifelse(input$cat_group == "Selected Regions", "Region", "Segment")
+  x_var <- ifelse(fill_var == "Region", "Segment", "Region")
+
+  data |>
+    count(.data[[x_var]], .data[[fill_var]]) |>
+    ggplot(aes(x = .data[[x_var]], y = n, fill = .data[[fill_var]])) +
+    geom_bar(stat = "identity") +
+    labs(x = x_var, y = "Count", fill = fill_var) +
+    theme_minimal()
+})
+output$cat_plot_ui <- renderUI({
+  req(input$summary_type == "cat",
+      input$explore_options == "plot",
+      !is.null(input$cat_plot_type))
+
+  if (input$cat_plot_type == "bar") {
+    tagList(
+      plotOutput("bar_region"),
+      plotOutput("bar_segment")
+    )
+  } else if (input$cat_plot_type == "stacked") {
+    plotOutput("bar_stacked")
+  }
+})
+
+
+
+
+# Histogram grouped by chosen variable (fill)
+output$num_hist <- renderPlot({
+  req(subset_data(), input$num_first, input$num_group)
+  data <- subset_data()
+  num_var <- input$num_first
+  fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
+
+  data |>
+    ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
+    geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
+    labs(x = num_var, y = "Count", fill = fill_var) +
+    theme_minimal()
+})
+
+# Boxplot grouped by selected variable
+output$num_box <- renderPlot({
+  req(subset_data(), input$num_first, input$num_group)
+  data <- subset_data()
+  num_var <- input$num_first
+  x_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
+
+  data |>
+    ggplot(aes(x = .data[[x_var]], y = .data[[num_var]], fill = .data[[x_var]])) +
+    geom_boxplot() +
+    labs(x = x_var, y = num_var, fill = x_var) +
+    theme_minimal()
+})
+
+# Density plot grouped by selected variable
+output$num_density <- renderPlot({
+  req(subset_data(), input$num_first, input$num_group)
+  data <- subset_data()
+  num_var <- input$num_first
+  fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
+
+  data |>
+    ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
+    geom_density(alpha = 0.5) +
+    labs(x = num_var, y = "Density", fill = fill_var) +
+    theme_minimal()
+})
+
+
+
+
+
+
+
+
+output$num_plot_ui <- renderUI({
+  req(input$summary_type == "num",
+      input$explore_options == "plot",
+      !is.null(input$num_plot_type))
+
+  if (input$num_plot_type == "hist") {
+    plotOutput("num_hist")
+  } else if (input$num_plot_type == "box") {
+    plotOutput("num_box")
+  } else if (input$num_plot_type == "density") {
+    plotOutput("num_density")
+  }
+})
+
+
+
+
+
+
+
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
-
 ```
