@@ -15,6 +15,7 @@ When you click the **Render** button a document will be generated that includes 
 ```{r}
 library(tidyr)
 library(tidyverse)
+library(tidyplots)
 library(readxl)
 library(DT)
 project2_1_ <- read_excel("project2 (1).xls")
@@ -134,6 +135,8 @@ ggplot(data = project2_1_ |>
        x = "Segment",
        y = "Count") +
   theme_minimal()
+
+#One we did not cover in class, a donut/pie chart
 
 
 ```
@@ -282,9 +285,11 @@ ui <- fluidPage(
 
       actionButton("subset_btn", "Subset Data")
     ),
-
+#Here we set up the main pain
     mainPanel(
       tabsetPanel(
+        
+#this tab will tell about the app and aloow users to see the website 
         tabPanel(
           title = "About My App!",
           h3("Welcome to the Superstore Sales App!"),
@@ -292,13 +297,19 @@ ui <- fluidPage(
           p("In the sidebar you have widgets that allow you to subset the data. In the app main panel Data Download tab you can download the data or data subset. In the Data Exploration tab you can obtain numeric and graphical summaries of the data."),
           tags$a(href = "https://www.kaggle.com/datasets/juhi1994/superstore/discussion?sort=hotness", "Link to data source")
         ),
+        
+  #this tab will allow users to download the possibly subsetted data
         tabPanel(
           title = "Data Download",
           h3("Dataset on Online Orders of a US Superstore from 2014-2018.")
         ),
+  
+  #this tab will allow users to display abnd explore data in a variety of formats
         tabPanel(
           title = "Data Exploration",
           h3("Here you can explore the data with numeric and graphical summaries!"),
+          
+  #these buttons ask the user what types of data they want to look at, categorical or numeric
           radioButtons(
             inputId = "summary_type",
             label = "Choose summary type:",
@@ -306,35 +317,32 @@ ui <- fluidPage(
             selected = "cat"
           ),
 
-          # Let user choose what they want to see
+          # Let user choose if they want to see tables or plots
             radioButtons(
             inputId = "explore_options",
             label = "Select what to display:",
             choices = c("Table" = "table", "Plot" = "plot"),
             selected = NULL
           ),
-
-          
-          # Dynamic UI for table/plot controls (radio buttons, checkboxes, etc.)
+# Dynamic UI for table/plot controls (radio buttons, checkboxes, etc.)
 uiOutput("explore_controls"),
+
 
 # Placeholders for conditional "Group by" selectors
 uiOutput("cat_group_ui"),  # Only appears if categorical stacked bar is selected
 uiOutput("num_group_ui"),  # Only appears if numeric boxplot is selected
 
-# Placeholder for the actual outputs
-uiOutput("explore_outputs"),
+# Output placeholders
+  # Categorical tables
+  tableOutput("oneway_table"),
+  tableOutput("two_way_table"),
+
+  # Categorical plots
+uiOutput("cat_plots"), 
 
 
-# Placeholders for tables and plots
-tableOutput("oneway_table_segment"),
-tableOutput("oneway_table_region"),
-tableOutput("two_way_table"),
-uiOutput("cat_plot_ui"),
-uiOutput("num_plot_ui_first"),
-uiOutput("num_plot_ui_second"),
-tableOutput("summary_stats_region"),
-tableOutput("summary_stats_segment"),
+  # Numerical plots
+uiOutput("num_plots") 
 
         )
       )
@@ -345,8 +353,7 @@ tableOutput("summary_stats_segment"),
 # Define server
 server <- function(input, output, session) {
 
-
-  # Dynamic slider based on numeric variable
+  # Dynamic slider based on firstnumeric variable
   output$num_first_slider <- renderUI({
     req(input$num_first)
     if (input$num_first == "Sales") {
@@ -368,7 +375,8 @@ server <- function(input, output, session) {
     }
   })
   
-   # Dynamic slider based on numeric variable
+  
+   # Dynamic slider based on second numeric variable
   output$num_second_slider <- renderUI({
     req(input$num_second)
     if (input$num_second == "Sales") {
@@ -391,22 +399,23 @@ server <- function(input, output, session) {
   })
   
 
-  # Reactive subset
+  # This creates the subset of the data that is reactive to what they select in the side bar when they hit the subset button.
  subset_data <- eventReactive(input$subset_btn, {
   req(input$num_first_slider, input$num_second_slider)
 
+   #filters based on what subsets they pick for the categorical variables
   data <- my_sample %>%
     filter(Region %in% input$cat_region,
            Segment %in% input$cat_segment)
 
-  # Filter by first numeric variable
+  # Filter by the range provided for the first numeric variable
   num_var1 <- input$num_first
   slider_vals1 <- input$num_first_slider
   data <- data %>%
     filter(.data[[num_var1]] >= slider_vals1[1],
            .data[[num_var1]] <= slider_vals1[2])
 
-  # Filter by second numeric variable
+  # Filter by the range provided for the second numeric variable
   num_var2 <- input$num_second
   slider_vals2 <- input$num_second_slider
   data <- data %>%
@@ -415,50 +424,95 @@ server <- function(input, output, session) {
 
   data
 })
+ 
+#this is our data we want the use to explore, it will subset the specific data they 
+active_data <- reactive({
+  data <- my_sample
+
+  # Only subset when the button is pressed
+  if (input$subset_btn > 0) {
+    # Categorical subsetting
+    data <- data %>%
+      filter(
+        Region %in% input$cat_region,
+        Segment %in% input$cat_segment
+      )
+    
+    # Numeric subsetting for first variable
+    if (!is.null(input$num_first_slider)) {
+      data <- data %>%
+        filter(
+          .data[[input$num_first]] >= input$num_first_slider[1],
+          .data[[input$num_first]] <= input$num_first_slider[2]
+        )
+    }
+    
+    # Numeric subsetting for second variable
+    if (!is.null(input$num_second_slider)) {
+      data <- data %>%
+        filter(
+          .data[[input$num_second]] >= input$num_second_slider[1],
+          .data[[input$num_second]] <= input$num_second_slider[2]
+        )
+    }
+  }
+
+  data
+})
 
 output$explore_controls <- renderUI({
-  req(input$explore_options)  # Make sure user has selected table or plot
+  req(input$summary_type, input$explore_options)
+
+  cat_vars <- c("Ship Mode", "Segment", "Country", "City", 
+                "State", "Postal Code", "Region", 
+                "Category", "Sub-Category")
+  num_vars <- c("Sales", "Quantity", "Discount", "Profit")
 
   ui_list <- list()
-  
-  # Table controls
-  if ("table" %in% input$explore_options) {
+
+  # Categorical or numeric selection
+  if (input$summary_type == "cat") {
+    ui_list <- append(ui_list, list(
+      selectInput("cat_var", "Choose categorical variable:",
+                  choices = cat_vars, selected = "Region"),
+      selectInput("cat_group", "Optional grouping variable:",
+                  choices = c("None", cat_vars), selected = "None")
+    ))
+  } else if (input$summary_type == "num") {
+    ui_list <- append(ui_list, list(
+      selectInput("num_var", "Choose numeric variable:",
+                  choices = num_vars, selected = "Sales"),
+      selectInput("num_group", "Optional grouping variable:",
+                  choices = c("None", cat_vars), selected = "None")
+    ))
+  }
+
+  # Table / Plot type options
+  if (input$explore_options == "table") {
     if (input$summary_type == "cat") {
       ui_list <- append(ui_list, list(
         checkboxGroupInput("table_type_cat", "Choose type(s) of table:",
                            choices = c("One-way table" = "one_way",
                                        "Two-way table" = "two_way"),
-                           selected = "one_way"))
-      )
-    } else if (input$summary_type == "num") {
-      ui_list <- append(ui_list, list(
-        checkboxGroupInput("table_type_num", "Select what variables you want to see numeric summaries for:",
-                           choices = c("Region" = "region",
-                                       "Segment" = "segment"),
-                           selected = c("Region"))
+                           selected = "one_way")
       ))
-    }
-  }
-
-  # Plot controls
-  if ("plot" %in% input$explore_options) {
+    } 
+  } else if (input$explore_options == "plot") {
     if (input$summary_type == "cat") {
-      # Radio buttons for categorical plots
       ui_list <- append(ui_list, list(
-        radioButtons("cat_plot_type", "Choose plot type:",
-                     choices = c("Bar Chart" = "bar", "Stacked Bar Chart" = "stacked"),
-                     selected = "bar"),
-        # Conditional Group by selector for stacked bars
-        uiOutput("cat_group_ui")
+         checkboxGroupInput("cat_plot_type", "Choose plot type:",
+                     choices = c("Bar Chart" = "bar",
+                                 "Stacked Bar Chart" = "stacked",
+                                 "Pie Chart"="pie"),
+                     selected = "bar")
       ))
     } else if (input$summary_type == "num") {
-      # Radio buttons for numeric plots
       ui_list <- append(ui_list, list(
-        radioButtons("num_plot_type", "Choose plot type:",
-                     choices = c("Histogram" = "hist", "Boxplot" = "box", "Density Plot" = "density"),
-                     selected = "hist"),
-        # Conditional Group by selector for boxplots
-        uiOutput("num_group_ui")
+        checkboxGroupInput("num_plot_type", "Choose plot type:",
+                     choices = c("Histogram" = "hist",
+                                 "Boxplot" = "box",
+                                 "Density Plot" = "density"),
+                     selected = "hist")
       ))
     }
   }
@@ -469,131 +523,203 @@ output$explore_controls <- renderUI({
 
 
 
-# Conditional Group by UI for categorical plots
-output$cat_group_ui <- renderUI({
-  req(input$cat_plot_type)
-  if (input$cat_plot_type == "stacked") {
-    selectInput("cat_group", "Group by:",
-                choices = c("Selected Regions", "Selected Segments"),
-                selected = "Selected Regions")
-  }
-})
-
-# Conditional Group by UI for numeric plots
-output$num_group_ui <- renderUI({
-  req(input$num_plot_type)
-    selectInput("num_group", "Group by:",
-                choices = c("Selected Regions", "Selected Segments"),
-                selected = "Selected Regions")
-})
-#Categorical Table Outputs 
-
-# ONE-WAY tables
-output$oneway_table_segment <- renderTable({
-  req(subset_data())
+  
+ #making a one way table if they chose categorical, table, and one way 
+output$oneway_table <- renderTable({
+  #making sure all the things are selected we need
+  req(active_data())
   req(input$summary_type == "cat",
       input$explore_options == "table",
       "one_way" %in% input$table_type_cat)
   
-  data <- subset_data()
+  data <- active_data()
   
+  #making one way table
   data |>
-    count(Segment) |>
-    rename(Count = n)
-})
-
-output$oneway_table_region <- renderTable({
-  req(subset_data())
-  req(input$summary_type == "cat",
-      input$explore_options == "table",
-      "one_way" %in% input$table_type_cat)
+  drop_na(.data[[input$cat_var]]) |>
+  group_by(.data[[input$cat_var]]) |>
+  summarize(count = n())
   
-  data <- subset_data()
   
-  data %>%
-    count(Region) %>%
-    rename(Count = n)
 })
 
 
-# TWO-WAY table
+ #making a two way table if they chose categorical, table, and two way using their variable and grouping variable
+
 output$two_way_table <- renderTable({
-  req(subset_data())
+#requiring the inputs we need
+   req(active_data())
   req(input$summary_type == "cat",
       input$explore_options == "table",
-    "two_way" %in% input$table_type_cat)
+      "two_way" %in% input$table_type_cat)
   
-  data <- subset_data()
+  #makes the user select a grouping variable if they want to make a two way table
   
-  data %>%
-    count(Region, Segment) %>%
-    pivot_wider(
-      names_from = Segment,
-      values_from = n,
-      values_fill = 0
-    )
-})
+  if (is.null(input$cat_group) || input$cat_group == "None") {
+    return(data.frame(Message = "Need to select an optional grouping in order to have a two-way table!"))
+  }
 
-# REGULAR bar for Region
-output$bar_region <- renderPlot({
-  req(subset_data())
-  data <- subset_data()
-
+  #creating the two way table and using pivot wider so it looks nicer
+  data <- active_data()
+  
   data |>
-    count(Region) |>
-    ggplot(aes(x = Region, y = n)) +
-    geom_bar(stat = "identity", fill = "steelblue") +
-    labs(x = "Region", y = "Count") +
-    theme_minimal()
+  drop_na(.data[[input$cat_var]], .data[[input$cat_group]]) |>
+  group_by(.data[[input$cat_var]], .data[[input$cat_group]]) |>
+  summarize(count = n())|>
+    tidyr::pivot_wider(
+    names_from = .data[[input$cat_group]],  
+    values_from = count,                           
+    values_fill = 0                                
+  ) |>
+as.data.frame()       
+}) 
+
+
+
+#fixing the format of the categorical plots, so they don't hold space on page if only one is selected 
+output$cat_plots <- renderUI({
+  req(input$explore_options == "plot")
+  req(input$cat_plot_type)
+  
+  plot_list <- lapply(input$cat_plot_type, function(plot_type) {
+    if (plot_type == "pie") {
+      plotOutput("pie", height = "400px")
+    } else if (plot_type == "stacked") {
+      plotOutput("bar_stacked", height = "400px")
+    } else if (plot_type == "bar") {
+      plotOutput("single_bar", height = "400px")
+    }
+  })
+  
+  do.call(tagList, plot_list)
 })
 
-# REGULAR bar for Segment
-output$bar_segment <- renderPlot({
-  req(subset_data())
-  data <- subset_data()
+#creating a bar graph if they want a categorical plot
 
-  data |>
-    count(Segment) |>
-    ggplot(aes(x = Segment, y = n)) +
-    geom_bar(stat = "identity", fill = "steelblue") +
-    labs(x = "Segment", y = "Count") +
-    theme_minimal()
-})
-
-# STACKED bar with user choice
-output$bar_stacked <- renderPlot({
-  req(subset_data(), input$cat_group)
-  data <- subset_data()
-
-  fill_var <- ifelse(input$cat_group == "Selected Regions", "Region", "Segment")
-  x_var <- ifelse(fill_var == "Region", "Segment", "Region")
-
-  data |>
-    count(.data[[x_var]], .data[[fill_var]]) |>
-    ggplot(aes(x = .data[[x_var]], y = n, fill = .data[[fill_var]])) +
-    geom_bar(stat = "identity") +
-    labs(x = x_var, y = "Count", fill = fill_var) +
-    theme_minimal()
-})
-output$cat_plot_ui <- renderUI({
+output$single_bar <- renderPlot({
+  req(active_data())
   req(input$summary_type == "cat",
       input$explore_options == "plot",
-      !is.null(input$cat_plot_type))
+      "bar" %in% input$cat_plot_type)
+  
+  data <-active_data()
 
-  if (input$cat_plot_type == "bar") {
-    tagList(
-      plotOutput("bar_region"),
-      plotOutput("bar_segment")
-    )
-  } else if (input$cat_plot_type == "stacked") {
-    plotOutput("bar_stacked")
+  data |>
+    drop_na(.data[[input$cat_var]])|>
+  group_by((.data[[input$cat_var]]))|>
+    count(.data[[input$cat_var]]) |>
+    ggplot(aes(x = .data[[input$cat_var]], y = n)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(
+      x = input$cat_var,   
+      y = "Count"
+    ) +
+    theme_minimal()
+})
+
+#creating a stacked graph if they want a categorical plot that is grouped
+
+output$bar_stacked <- renderPlot({
+  req(active_data())
+  req(input$summary_type == "cat",
+      input$explore_options == "plot",
+      "stacked" %in% input$cat_plot_type)
+  
+  
+  #displays a message like for the tables, so if they want a stacked bar chart they have to have a grouping variable selected
+   if (is.null(input$cat_group) || input$cat_group == "None") {
+    plot.new()
+    text(0.5, 0.5, "Please select a grouping variable to display a stacked bar graph", cex = 1.2)
+    return()
+  }
+  
+  data <-active_data()
+  data |>
+    count(.data[[input$cat_var]], .data[[input$cat_group]]) |>
+    ggplot(aes(x = .data[[input$cat_var]], y = n, fill = .data[[input$cat_group]])) +
+    geom_bar(stat = "identity") +
+    labs(x = input$cat_var, y = "Count", fill = input$cat_group) +
+    theme_minimal()
+})
+
+#creating a pie graph 
+
+output$pie <- renderPlot({
+  req(active_data())
+  req(input$summary_type == "cat",
+      input$explore_options == "plot",
+      "pie" %in% input$cat_plot_type)
+  
+  data <-active_data()
+  data |>
+    drop_na(.data[[input$cat_var]]) |>
+    count(.data[[input$cat_var]]) |>
+    tidyplot(
+      y = n, color = .data[[input$cat_var]])|>
+  add_pie()
+  
+}, height = 400)
+
+
+
+
+
+
+#fixing the format of the numerical plots, so they don't hold space on page if only one is selected 
+output$num_plots <- renderUI({
+  req(input$explore_options == "plot")
+  req(input$num_plot_type)
+  
+  num_plot_list <- lapply(input$num_plot_type, function(num_plot_type) {
+    if (num_plot_type == "hist") {
+      plotOutput("hist", height = "400px")
+    } else if (num_plot_type == "box") {
+      plotOutput("box", height = "400px")
+    } else if (num_plot_type == "density") {
+      plotOutput("density", height = "400px")
+    }
+  })
+  
+  do.call(tagList, num_plot_list)
+})
+
+
+#creating a histogram
+output$hist <- renderPlot({
+  req(active_data())
+  req(input$summary_type == "num",
+      input$explore_options == "plot",
+      "hist" %in% input$num_plot_type)
+  data <- active_data()
+  
+   # Determine the fill variable
+  fill_var <- input$num_group
+  if (is.null(fill_var) || fill_var == "None") {
+    fill_var <- NULL
+  }
+
+  # Build histogram
+  if (is.null(fill_var)) {
+    ggplot(data, aes(x = .data[[input$num_var]])) +
+      geom_histogram(alpha = 0.5, bins = 15, fill = "steelblue") +
+      labs(x = input$num_var, y = "Count") +
+      theme_minimal()
+  } else {
+    ggplot(data, aes(x = .data[[input$num_var]], fill = !!sym(fill_var))) +
+      geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
+      labs(x = input$num_var, y = "Count", fill = fill_var) +
+      theme_minimal()
   }
 })
-render_numeric_plot <- function(num_var, plot_type, plot_id) {
-  output[[plot_id]] <- renderPlot({
-    req(subset_data(), num_var, input$num_group)
+}
 
-    data <- subset_data()
+
+shinyApp(ui = ui, server = server)
+```
+
+
+
+    data <- active_data()
 
     # Decide grouping variable for all plot types
     fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
@@ -669,12 +795,12 @@ output$num_plot_ui_second <- renderUI({
 })
 
 output$summary_stats_region <- renderTable({
-  req(subset_data(), 
+  req(active_data(), 
       input$summary_type == "num", 
       input$explore_options == "table", 
       "region" %in% input$table_type_num)
 
-  data <- subset_data()
+  data <- active_data()
   num_vars <- c(input$num_first, input$num_second)
 
   # Summary by Region
@@ -717,7 +843,7 @@ output$summary_stats_region <- renderTable({
 
 # --- NUMERIC summaries by Segment ---
 output$summary_stats_segment <- renderTable({
-  req(subset_data(), 
+  req(active_data(), 
       input$summary_type == "num", 
       input$explore_options == "table", 
       "segment" %in% input$table_type_num)
@@ -766,5 +892,4 @@ output$summary_stats_segment <- renderTable({
 }
 
 # Run the application 
-shinyApp(ui = ui, server = server)
-```
+
