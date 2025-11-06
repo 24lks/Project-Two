@@ -343,7 +343,10 @@ uiOutput("cat_plots"),
 
 
   # Numerical plots
-uiOutput("num_plots") 
+uiOutput("num_plots"), 
+
+  # Numerical plots
+uiOutput("num_tables") 
 
         )
       )
@@ -521,10 +524,7 @@ output$explore_controls <- renderUI({
   do.call(tagList, ui_list)
 })
 
-
-
-
-  
+ 
  #making a one way table if they chose categorical, table, and one way 
 output$oneway_table <- renderTable({
   #making sure all the things are selected we need
@@ -772,11 +772,31 @@ output$density<-renderPlot({
       theme_minimal()
   }
   
-  
 })      
-
-
-
+output$num_tables<-renderTable({
+   req(active_data(), 
+      input$summary_type == "num", 
+      input$explore_options == "table")
+  
+  
+   data <- active_data() 
+   
+  # If grouping is selected, group first
+  if (!is.null(input$num_group) && input$num_group != "None") {
+    data <- data |> group_by(!!sym(input$num_group))
+  }
+   
+  summary_tbl <- data |>
+  summarise(
+   Mean = mean(.data[[input$num_var]], na.rm = TRUE),
+   Median = median(.data[[input$num_var]], na.rm = TRUE),
+     SD = sd(.data[[input$num_var]], na.rm = TRUE),
+     Min = min(.data[[input$num_var]], na.rm = TRUE),
+      Max = max(.data[[input$num_var]], na.rm = TRUE)
+  )
+  summary_tbl |>
+    rename_with(~ paste(input$num_var, ., sep = " "), .cols = c("Mean", "Median", "SD", "Min", "Max"))
+})
 
 
 }
@@ -784,129 +804,6 @@ output$density<-renderPlot({
 
 shinyApp(ui = ui, server = server)
 ```
-
-
-
-    data <- active_data()
-
-    # Decide grouping variable for all plot types
-    fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
-
-     else if (plot_type == "box") {
-      data |>
-        ggplot(aes(x = .data[[fill_var]], y = .data[[num_var]], fill = .data[[fill_var]])) +
-        geom_boxplot() +
-        labs(x = fill_var, y = num_var, fill = fill_var) +
-        theme_minimal()
-    } else if (plot_type == "density") {
-      data |>
-        ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
-        geom_density(alpha = 0.5) +
-        labs(x = num_var, y = "Density", fill = fill_var) +
-        theme_minimal()
-    }
-  })
-
-
-
-
-
-output$summary_stats_region <- renderTable({
-  req(active_data(), 
-      input$summary_type == "num", 
-      input$explore_options == "table", 
-      "region" %in% input$table_type_num)
-
-  data <- active_data()
-  num_vars <- c(input$num_first, input$num_second)
-
-  # Summary by Region
-  grouped_stats <- data |>
-    group_by(Region) |>
-    summarise(
-      across(all_of(num_vars),
-             list(
-               Mean = ~mean(.x, na.rm = TRUE),
-               Median = ~median(.x, na.rm = TRUE),
-               SD = ~sd(.x, na.rm = TRUE),
-               Min = ~min(.x, na.rm = TRUE),
-               Max = ~max(.x, na.rm = TRUE)
-             ),
-             .names = "{col}_{fn}"
-      )
-    ) |>
-    ungroup()
-
-  # Overall
-  overall_stats <- data |>
-    summarise(
-      across(all_of(num_vars),
-             list(
-               Mean = ~mean(.x, na.rm = TRUE),
-               Median = ~median(.x, na.rm = TRUE),
-               SD = ~sd(.x, na.rm = TRUE),
-               Min = ~min(.x, na.rm = TRUE),
-               Max = ~max(.x, na.rm = TRUE)
-             ),
-             .names = "{col}_{fn}"
-      )
-    ) |>
-    mutate(Region = "Overall For Your Selected Subset") |>
-    select(Region, everything())
-
-  bind_rows(grouped_stats, overall_stats)
-})
-
-
-# --- NUMERIC summaries by Segment ---
-output$summary_stats_segment <- renderTable({
-  req(active_data(), 
-      input$summary_type == "num", 
-      input$explore_options == "table", 
-      "segment" %in% input$table_type_num)
-
-  data <- subset_data()
-  num_vars <- c(input$num_first, input$num_second)
-
-  # Summary by Segment
-  grouped_stats <- data |>
-    group_by(Segment) |>
-    summarise(
-      across(all_of(num_vars),
-             list(
-               Mean = ~mean(.x, na.rm = TRUE),
-               Median = ~median(.x, na.rm = TRUE),
-               SD = ~sd(.x, na.rm = TRUE),
-               Min = ~min(.x, na.rm = TRUE),
-               Max = ~max(.x, na.rm = TRUE)
-             ),
-             .names = "{col}_{fn}"
-      )
-    ) |>
-    ungroup()
-
-  # Overall
-  overall_stats <- data |>
-    summarise(
-      across(all_of(num_vars),
-             list(
-               Mean = ~mean(.x, na.rm = TRUE),
-               Median = ~median(.x, na.rm = TRUE),
-               SD = ~sd(.x, na.rm = TRUE),
-               Min = ~min(.x, na.rm = TRUE),
-               Max = ~max(.x, na.rm = TRUE)
-             ),
-             .names = "{col}_{fn}"
-      )
-    ) |>
-    mutate(Segment = "Overall For Your Selected Subset") |>
-    select(Segment, everything())
-
-  bind_rows(grouped_stats, overall_stats)
-})
-
-
-}
-
+  
 # Run the application 
 
