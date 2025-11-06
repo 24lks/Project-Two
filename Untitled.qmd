@@ -13,6 +13,7 @@ Quarto enables you to weave together content and executable code into a finished
 When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
 ```{r}
+library(ggpubr)
 library(tidyr)
 library(tidyverse)
 library(tidyplots)
@@ -684,6 +685,8 @@ output$num_plots <- renderUI({
 })
 
 
+
+
 #creating a histogram
 output$hist <- renderPlot({
   req(active_data())
@@ -711,6 +714,71 @@ output$hist <- renderPlot({
       theme_minimal()
   }
 })
+
+
+#output$box<-renderPlot({
+  
+output$box<-renderPlot({
+  req(active_data())
+  req(input$summary_type == "num",
+      input$explore_options == "plot",
+      "box" %in% input$num_plot_type)
+  data <- active_data()
+  
+   # Determine the fill variable
+  fill_var <- input$num_group
+  if (is.null(fill_var) || fill_var == "None") {
+    fill_var <- NULL
+  }
+
+  # Build box plot
+  if (is.null(fill_var)) {
+    ggplot(data, aes(y = .data[[input$num_var]])) +
+      geom_boxplot(fill = "steelblue") +
+      labs( y = input$num_var) +
+      theme_minimal()
+  } else {
+    ggplot(data, aes(x = .data[[input$num_group]], y = .data[[input$num_var]], fill =  !!sym(fill_var))) +
+      geom_boxplot()+
+      labs(x = input$num_group, y = input$num_var, fill = fill_var) +
+      theme_minimal()
+  }
+  
+}) 
+    
+output$density<-renderPlot({
+  req(active_data())
+  req(input$summary_type == "num",
+      input$explore_options == "plot",
+      "density" %in% input$num_plot_type)
+  data <- active_data()
+  
+   # Determine the fill variable
+  fill_var <- input$num_group
+  if (is.null(fill_var) || fill_var == "None") {
+    fill_var <- NULL
+  }
+
+  # Build density plot
+  if (is.null(fill_var)) {
+    ggplot(data, aes(x = .data[[input$num_var]])) +
+      geom_density(alpha = 0.5, fill = "steelblue") +
+      labs(x = input$num_var, y = "Count") +
+      theme_minimal()
+  } else {
+    ggplot(data, aes(x = .data[[input$num_var]], fill = !!sym(fill_var))) +
+      geom_density(alpha = 0.5, position = "dodge") +
+      labs(x = input$num_var, y = "Count", fill = fill_var) +
+      theme_minimal()
+  }
+  
+  
+})      
+
+
+
+
+
 }
 
 
@@ -724,13 +792,7 @@ shinyApp(ui = ui, server = server)
     # Decide grouping variable for all plot types
     fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
 
-    if (plot_type == "hist") {
-      data |>
-        ggplot(aes(x = .data[[num_var]], fill = .data[[fill_var]])) +
-        geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
-        labs(x = num_var, y = "Count", fill = fill_var) +
-        theme_minimal()
-    } else if (plot_type == "box") {
+     else if (plot_type == "box") {
       data |>
         ggplot(aes(x = .data[[fill_var]], y = .data[[num_var]], fill = .data[[fill_var]])) +
         geom_boxplot() +
@@ -744,55 +806,10 @@ shinyApp(ui = ui, server = server)
         theme_minimal()
     }
   })
-}
-observe({
-  req(input$num_plot_type, input$num_first, input$num_second)
-
-  # Create plots reactively after inputs exist
-  render_numeric_plot(input$num_first, input$num_plot_type, paste0("num_", input$num_plot_type, "_first"))
-  render_numeric_plot(input$num_second, input$num_plot_type, paste0("num_", input$num_plot_type, "_second"))
-})
 
 
 
 
-# Always define all possible numeric plots so they exist
-render_numeric_plot("Sales", "hist", "num_hist_first")
-render_numeric_plot("Sales", "box", "num_box_first")
-render_numeric_plot("Sales", "density", "num_density_first")
-
-render_numeric_plot("Sales", "hist", "num_hist_second")
-render_numeric_plot("Sales", "box", "num_box_second")
-render_numeric_plot("Sales", "density", "num_density_second")
-
-
-
-
-# First numeric variable
-output$num_plot_ui_first <- renderUI({
-  req(input$summary_type == "num", input$explore_options == "plot", input$num_plot_type)
-  
-  if (input$num_plot_type == "hist") {
-    plotOutput("num_hist_first")
-  } else if (input$num_plot_type == "box") {
-    plotOutput("num_box_first")
-  } else if (input$num_plot_type == "density") {
-    plotOutput("num_density_first")
-  }
-})
-
-# Second numeric variable
-output$num_plot_ui_second <- renderUI({
-  req(input$summary_type == "num", input$explore_options == "plot", input$num_plot_type)
-  
-  if (input$num_plot_type == "hist") {
-    plotOutput("num_hist_second")
-  } else if (input$num_plot_type == "box") {
-    plotOutput("num_box_second")
-  } else if (input$num_plot_type == "density") {
-    plotOutput("num_density_second")
-  }
-})
 
 output$summary_stats_region <- renderTable({
   req(active_data(), 
