@@ -207,6 +207,7 @@ ggplot(project2_1_, aes(x = Quantity, fill = Category)) +
 ```
 
 ##Shiny App Creation
+
 ```{r}
 library(shiny)
 library(shinyalert)
@@ -272,7 +273,7 @@ ui <- fluidPage(
           "Discount",
           "Profit"
         ),
-        selected = "Sales"
+        selected = "Quantity"
       ),
         # Dynamic slider #2 goes here
       uiOutput("num_second_slider"),
@@ -332,7 +333,8 @@ tableOutput("two_way_table"),
 uiOutput("cat_plot_ui"),
 uiOutput("num_plot_ui_first"),
 uiOutput("num_plot_ui_second"),
-tableOutput("summary_stats")
+tableOutput("summary_stats_region"),
+tableOutput("summary_stats_segment"),
 
         )
       )
@@ -390,22 +392,29 @@ server <- function(input, output, session) {
   
 
   # Reactive subset
-  subset_data <- eventReactive(input$subset_btn, {
-    req(input$num_first_slider)
+ subset_data <- eventReactive(input$subset_btn, {
+  req(input$num_first_slider, input$num_second_slider)
 
-    data <- my_sample %>%
-      filter(Region %in% input$cat_region,
-             Segment %in% input$cat_segment)
+  data <- my_sample %>%
+    filter(Region %in% input$cat_region,
+           Segment %in% input$cat_segment)
 
-    num_var <- input$num_first
-    slider_vals <- input$num_first_slider
+  # Filter by first numeric variable
+  num_var1 <- input$num_first
+  slider_vals1 <- input$num_first_slider
+  data <- data %>%
+    filter(.data[[num_var1]] >= slider_vals1[1],
+           .data[[num_var1]] <= slider_vals1[2])
 
-    data <- data %>%
-      filter(.data[[num_var]] >= slider_vals[1],
-             .data[[num_var]] <= slider_vals[2])
+  # Filter by second numeric variable
+  num_var2 <- input$num_second
+  slider_vals2 <- input$num_second_slider
+  data <- data %>%
+    filter(.data[[num_var2]] >= slider_vals2[1],
+           .data[[num_var2]] <= slider_vals2[2])
 
-    data
-  })
+  data
+})
 
 output$explore_controls <- renderUI({
   req(input$explore_options)  # Make sure user has selected table or plot
@@ -423,11 +432,10 @@ output$explore_controls <- renderUI({
       )
     } else if (input$summary_type == "num") {
       ui_list <- append(ui_list, list(
-        checkboxGroupInput("table_type_num", "Choose summary statistics:",
-                           choices = c("Mean" = "mean",
-                                       "Median" = "median",
-                                       "Standard Deviation" = "sd"),
-                           selected = c("mean", "median"))
+        checkboxGroupInput("table_type_num", "Select what variables you want to see numeric summaries for:",
+                           choices = c("Region" = "region",
+                                       "Segment" = "segment"),
+                           selected = c("Region"))
       ))
     }
   }
@@ -474,11 +482,9 @@ output$cat_group_ui <- renderUI({
 # Conditional Group by UI for numeric plots
 output$num_group_ui <- renderUI({
   req(input$num_plot_type)
-  if (input$num_plot_type == "box") {
     selectInput("num_group", "Group by:",
                 choices = c("Selected Regions", "Selected Segments"),
                 selected = "Selected Regions")
-  }
 })
 #Categorical Table Outputs 
 
@@ -583,13 +589,14 @@ output$cat_plot_ui <- renderUI({
     plotOutput("bar_stacked")
   }
 })
-# Helper function to avoid duplication
 render_numeric_plot <- function(num_var, plot_type, plot_id) {
   output[[plot_id]] <- renderPlot({
     req(subset_data(), num_var, input$num_group)
+
     data <- subset_data()
+
+    # Decide grouping variable for all plot types
     fill_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
-    x_var <- fill_var  # for boxplot
 
     if (plot_type == "hist") {
       data |>
@@ -599,9 +606,9 @@ render_numeric_plot <- function(num_var, plot_type, plot_id) {
         theme_minimal()
     } else if (plot_type == "box") {
       data |>
-        ggplot(aes(x = .data[[x_var]], y = .data[[num_var]], fill = .data[[x_var]])) +
+        ggplot(aes(x = .data[[fill_var]], y = .data[[num_var]], fill = .data[[fill_var]])) +
         geom_boxplot() +
-        labs(x = x_var, y = num_var, fill = x_var) +
+        labs(x = fill_var, y = num_var, fill = fill_var) +
         theme_minimal()
     } else if (plot_type == "density") {
       data |>
@@ -615,6 +622,7 @@ render_numeric_plot <- function(num_var, plot_type, plot_id) {
 observe({
   req(input$num_plot_type, input$num_first, input$num_second)
 
+  # Create plots reactively after inputs exist
   render_numeric_plot(input$num_first, input$num_plot_type, paste0("num_", input$num_plot_type, "_first"))
   render_numeric_plot(input$num_second, input$num_plot_type, paste0("num_", input$num_plot_type, "_second"))
 })
@@ -622,7 +630,14 @@ observe({
 
 
 
+# Always define all possible numeric plots so they exist
+render_numeric_plot("Sales", "hist", "num_hist_first")
+render_numeric_plot("Sales", "box", "num_box_first")
+render_numeric_plot("Sales", "density", "num_density_first")
 
+render_numeric_plot("Sales", "hist", "num_hist_second")
+render_numeric_plot("Sales", "box", "num_box_second")
+render_numeric_plot("Sales", "density", "num_density_second")
 
 
 
@@ -653,21 +668,18 @@ output$num_plot_ui_second <- renderUI({
   }
 })
 
+output$summary_stats_region <- renderTable({
+  req(subset_data(), 
+      input$summary_type == "num", 
+      input$explore_options == "table", 
+      "region" %in% input$table_type_num)
 
-output$summary_stats <- renderTable({
-  req(subset_data(), input$summary_type == "num", input$explore_options == "table", input$num_group)
-  
   data <- subset_data()
-  
-  # Decide grouping variable based on user selection
-  group_var <- ifelse(input$num_group == "Selected Regions", "Region", "Segment")
-  
-  # Numeric variables to summarize
   num_vars <- c(input$num_first, input$num_second)
-  
-  # Summary by group
+
+  # Summary by Region
   grouped_stats <- data |>
-    group_by(.data[[group_var]]) |>
+    group_by(Region) |>
     summarise(
       across(all_of(num_vars),
              list(
@@ -681,8 +693,8 @@ output$summary_stats <- renderTable({
       )
     ) |>
     ungroup()
-  
-  # Summary for overall (all data)
+
+  # Overall
   overall_stats <- data |>
     summarise(
       across(all_of(num_vars),
@@ -696,12 +708,60 @@ output$summary_stats <- renderTable({
              .names = "{col}_{fn}"
       )
     ) |>
-    mutate(!!group_var := "Overall For Your Selected Subset") |>
-    select(all_of(group_var), everything())
-  
-  # Combine grouped and overall stats
+    mutate(Region = "Overall For Your Selected Subset") |>
+    select(Region, everything())
+
   bind_rows(grouped_stats, overall_stats)
 })
+
+
+# --- NUMERIC summaries by Segment ---
+output$summary_stats_segment <- renderTable({
+  req(subset_data(), 
+      input$summary_type == "num", 
+      input$explore_options == "table", 
+      "segment" %in% input$table_type_num)
+
+  data <- subset_data()
+  num_vars <- c(input$num_first, input$num_second)
+
+  # Summary by Segment
+  grouped_stats <- data |>
+    group_by(Segment) |>
+    summarise(
+      across(all_of(num_vars),
+             list(
+               Mean = ~mean(.x, na.rm = TRUE),
+               Median = ~median(.x, na.rm = TRUE),
+               SD = ~sd(.x, na.rm = TRUE),
+               Min = ~min(.x, na.rm = TRUE),
+               Max = ~max(.x, na.rm = TRUE)
+             ),
+             .names = "{col}_{fn}"
+      )
+    ) |>
+    ungroup()
+
+  # Overall
+  overall_stats <- data |>
+    summarise(
+      across(all_of(num_vars),
+             list(
+               Mean = ~mean(.x, na.rm = TRUE),
+               Median = ~median(.x, na.rm = TRUE),
+               SD = ~sd(.x, na.rm = TRUE),
+               Min = ~min(.x, na.rm = TRUE),
+               Max = ~max(.x, na.rm = TRUE)
+             ),
+             .names = "{col}_{fn}"
+      )
+    ) |>
+    mutate(Segment = "Overall For Your Selected Subset") |>
+    select(Segment, everything())
+
+  bind_rows(grouped_stats, overall_stats)
+})
+
 
 }
 
