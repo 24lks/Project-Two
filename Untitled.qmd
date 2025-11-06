@@ -509,7 +509,8 @@ output$explore_controls <- renderUI({
                                  "Stacked Bar Chart" = "stacked",
                                  "Pie Chart"="pie"),
                      selected = "bar")
-      ))
+)
+      )
     } else if (input$summary_type == "num") {
       ui_list <- append(ui_list, list(
         checkboxGroupInput("num_plot_type", "Choose plot type:",
@@ -597,27 +598,22 @@ output$cat_plots <- renderUI({
 
 #creating a bar graph if they want a categorical plot
 
-output$single_bar <- renderPlot({
-  req(active_data())
-  req(input$summary_type == "cat",
-      input$explore_options == "plot",
+output$single_bar <- renderPlot({ 
+  req(active_data()) 
+  req(input$summary_type == "cat", input$explore_options == "plot", 
       "bar" %in% input$cat_plot_type)
   
-  data <-active_data()
-
-  data |>
-    drop_na(.data[[input$cat_var]])|>
-  group_by((.data[[input$cat_var]]))|>
-    count(.data[[input$cat_var]]) |>
-    ggplot(aes(x = .data[[input$cat_var]], y = n)) +
-    geom_bar(stat = "identity", fill = "steelblue") +
-    labs(
-      x = input$cat_var,   
-      y = "Count"
-    ) +
+  
+  data <-active_data() 
+  
+  data |> 
+    drop_na(.data[[input$cat_var]])|> 
+    group_by((.data[[input$cat_var]]))|> count(.data[[input$cat_var]]) |> ggplot(aes(x = .data[[input$cat_var]], y = n)) + 
+    geom_bar(stat = "identity", fill = "steelblue") + 
+    labs( x = input$cat_var, y = "Count" ) + 
     theme_minimal()
+  
 })
-
 #creating a stacked graph if they want a categorical plot that is grouped
 
 output$bar_stacked <- renderPlot({
@@ -641,6 +637,8 @@ output$bar_stacked <- renderPlot({
     geom_bar(stat = "identity") +
     labs(x = input$cat_var, y = "Count", fill = input$cat_group) +
     theme_minimal()
+  
+ 
 })
 
 #creating a pie graph 
@@ -658,7 +656,7 @@ output$pie <- renderPlot({
     tidyplot(
       y = n, color = .data[[input$cat_var]])|>
   add_pie()
-  
+
 }, height = 400)
 
 
@@ -743,6 +741,7 @@ output$box<-renderPlot({
       labs(x = input$num_group, y = input$num_var, fill = fill_var) +
       theme_minimal()
   }
+  
   
 }) 
     
