@@ -5,6 +5,8 @@ account: laurie1999
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16008805
-bundleId: 11151712
+bundleId: 11151727
 url: https://laurie1999.shinyapps.io/project_two/
 version: 1
+asMultiple: FALSE
+asStatic: FALSE

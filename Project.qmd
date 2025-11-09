@@ -1,12 +1,9 @@
 ---
 title: "Project Two"
-format: 
+format:
   html:
-    runtime: shiny
+    theme: default
 ---
-
-## Quarto
-
 ##Categorical Summaries
 
 ```{r}
@@ -17,7 +14,6 @@ library(tidyplots)
 library(readxl)
 library(DT)
 library(bslib)
-install.packages("shinycssloadersshinycssloaders")
 library(shinycssloaders)
 project2_1_ <- read_excel("project2 (1).xls")
 View(project2_1_)
@@ -252,7 +248,14 @@ library(shiny)
 library(shinyalert)
 library(tidyverse)
 library(readxl)
-
+library(ggpubr)
+library(tidyr)
+library(tidyverse)
+library(tidyplots)
+library(readxl)
+library(DT)
+library(bslib)
+library(shinycssloaders)
 
 
 # Load sample data outside the UI
