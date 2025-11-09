@@ -6,11 +6,7 @@ editor: visual
 
 ## Quarto
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Codef
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+##Categorical Summaries
 
 ```{r}
 library(ggpubr)
@@ -73,6 +69,7 @@ project2_1_ |>
   summarize(count = n())
 
 
+#two way tables state, city
 project2_1_ |>
   drop_na(State, City) |>
   group_by(State, City) |>
@@ -80,18 +77,20 @@ project2_1_ |>
 
 
 
+#two way tables region, state
 project2_1_ |>
   drop_na(Region, State) |>
   group_by(Region, State) |>
   summarize(count = n())
 
+#two way tables category, sub-category
 project2_1_ |>
   drop_na(Category, `Sub-Category`) |>
   group_by(Category, `Sub-Category`) |>
   summarize(count = n())
 
 
-
+#two way tables state, category
 project2_1_ |>
   drop_na(State, `Category`) |>
   group_by(State, `Category`) |>
@@ -99,12 +98,13 @@ project2_1_ |>
 
 
 
+#two way tables region, category
 project2_1_ |>
   drop_na(Region, `Category`) |>
   group_by(Region, `Category`) |>
   summarize(count = n())
 
-#Stacked Bar Graph
+#Stacked Bar Graph Region, Category
 ggplot(data = project2_1_ |>
  group_by(Region, `Category`) |>
  summarize(count = n()), aes(x = Region, y = count, fill = Category)) +
@@ -114,7 +114,7 @@ ggplot(data = project2_1_ |>
        y = "Count") +
   theme_minimal()
 
-#Stacked Bar Graph
+#Stacked Bar Graph State, Segment
 ggplot(data = project2_1_ |>
   drop_na(State, Segment) |>
   group_by(State, Segment) |>
@@ -126,7 +126,7 @@ ggplot(data = project2_1_ |>
   theme_minimal()
 
 
-#Stacked Bar Graph
+#Stacked Bar Graph Segment, Category
 ggplot(data = project2_1_ |>
   drop_na(Segment, Category) |>
   group_by(Segment, Category) |>
@@ -139,35 +139,50 @@ ggplot(data = project2_1_ |>
 
 #One we did not cover in class, a donut/pie chart
 
+  project2_1_|>
+    tidyplot(color = Segment) |>
+  add_pie()
+
+
+
+
 
 ```
 
-Numeric Summaries
+##Numeric Summaries
 
 ```{r}
+
+#numerical table, grouped
  project2_1_ |>
   group_by(Segment)|>
   summarize(across(c( Sales, Quantity, Discount, Profit), 
                    list("mean" = mean, "median" = median, "standard deviation"=sd), 
                    .names = "{.fn}_{.col}"))
 
+#numerical table, grouped
  project2_1_ |>
   group_by(State)|>
   summarize(across(c( Sales, Quantity, Discount, Profit), 
                    list("mean" = mean, "median" = median, "standard deviation"=sd), 
                    .names = "{.fn}_{.col}"))
+ 
+ #numerical table, grouped
  project2_1_ |>
   group_by(City)|>
   summarize(across(c( Sales, Quantity, Discount, Profit), 
                    list("mean" = mean, "median" = median, "standard deviation"=sd), 
                    .names = "{.fn}_{.col}"))
  
+ #numerical table, grouped
   project2_1_ |>
   group_by(Category)|>
   summarize(across(c( Sales, Quantity, Discount, Profit), 
                    list("mean" = mean, "median" = median, "standard deviation"=sd), 
                    .names = "{.fn}_{.col}"))
 
+  
+  #numerical table, grouped
     project2_1_ |>
   group_by(Region)|>
   summarize(across(c( Sales, Quantity, Discount, Profit), 
@@ -175,13 +190,15 @@ Numeric Summaries
                    .names = "{.fn}_{.col}"))
     
     
+#numerical table, grouped
     project2_1_ |>
   group_by(`Sub-Category`)|>
   summarize(across(c( Sales, Quantity, Discount, Profit), 
                    list("mean" = mean, "median" = median, "standard deviation"=sd), 
                    .names = "{.fn}_{.col}"))
     
-    #Create a histogram-Distribution of Age by Sex
+  
+    #Create a histogram-Distribution of Age by Region
 
 ggplot(project2_1_ , aes(x = Sales, fill = Region)) +
   geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
@@ -191,14 +208,19 @@ ggplot(project2_1_ , aes(x = Sales, fill = Region)) +
     y = "Count",
     fill = "Region"
   )
+  
+    #Create a desnsity plot of discount by segment
+
 ggplot(project2_1_, aes(x = Discount, fill = Segment)) +
   geom_density(alpha = 0.5, position = "dodge") +
   labs(
     title = "Distribution Sales by Region",
-    x = "Discont",
+    x = "Discuont",
     y = "Count",
     fill = "Segment"
   )
+
+ #Create a density plot of quantity by category
 
 ggplot(project2_1_, aes(x = Quantity, fill = Category)) +
   geom_density(alpha = 0.5, position = "dodge") +
@@ -208,6 +230,15 @@ ggplot(project2_1_, aes(x = Quantity, fill = Category)) +
     y = "Count",
     fill = "Category"
   )
+
+
+#create a boxplot
+
+ggplot(project2_1_, aes(x = Segment, y = Quantity)) +
+      geom_boxplot(fill = "steelblue") +
+      labs(y = "Quantity") +
+      theme_minimal()
+
 ```
 
 ##Shiny App Creation
@@ -227,6 +258,7 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       h2("Select Region:"),
+      #select subset of region
      checkboxGroupInput(
         inputId = "cat_region",
         label = "Region",
@@ -238,6 +270,7 @@ ui <- fluidPage(
         ),
         selected = "Central"
       ),
+     #select subset of segment
       h2("Select Segment:"),
      checkboxGroupInput(
         inputId = "cat_segment",
@@ -250,6 +283,7 @@ ui <- fluidPage(
         ),
         selected = "Consumer"
       ),
+     #select first numeric
       h2("Select First Numeric Variable:"),
       selectInput(
         inputId = "num_first",
@@ -263,10 +297,10 @@ ui <- fluidPage(
         selected = "Sales"
       ),
 
-      # Dynamic slider #1 goes here
+      # Dynamic slider #1 
       uiOutput("num_first_slider"),
      
-     
+     #select second numeric
       h2("Select Second Numeric Variable:"),
       selectInput(
         inputId = "num_second",
@@ -279,7 +313,7 @@ ui <- fluidPage(
         ),
         selected = "Quantity"
       ),
-        # Dynamic slider #2 goes here
+        # Dynamic slider #2 
       uiOutput("num_second_slider"),
      
      
@@ -302,7 +336,11 @@ ui <- fluidPage(
   #this tab will allow users to download the possibly subsetted data
         tabPanel(
           title = "Data Download",
-          h3("Dataset on Online Orders of a US Superstore from 2014-2018.")
+          h3("Dataset on Online Orders of a US Superstore from 2014-2018."),
+            DT::dataTableOutput("data_table"),
+             downloadButton("download_data", "Download Current Data")
+          
+    
         ),
   
   #this tab will allow users to display abnd explore data in a variety of formats
@@ -328,8 +366,12 @@ ui <- fluidPage(
 # Dynamic UI for table/plot controls
 uiOutput("explore_controls"),
 
+#placeholder for outputs
+uiOutput("cat_group_ui"),
+uiOutput("num_group_ui"),
 
-# Output placeholders
+
+# Specific Output placeholders
   # Categorical tables
   tableOutput("oneway_table"),
   tableOutput("two_way_table"),
@@ -397,57 +439,28 @@ server <- function(input, output, session) {
                   min = -6600, max = 8400, value = c(-6600, 8400))
     }
   })
-  
-
-  # This creates the subset of the data that is reactive to what they select in the side bar when they hit the subset button.
- subset_data <- eventReactive(input$subset_btn, {
-  req(input$num_first_slider, input$num_second_slider)
-
-   #filters based on what subsets they pick for the categorical variables
-  data <- my_sample %>%
-    filter(Region %in% input$cat_region,
-           Segment %in% input$cat_segment)
-
-  # Filter by the range provided for the first numeric variable
-  num_var1 <- input$num_first
-  slider_vals1 <- input$num_first_slider
-  data <- data %>%
-    filter(.data[[num_var1]] >= slider_vals1[1],
-           .data[[num_var1]] <= slider_vals1[2])
-
-  # Filter by the range provided for the second numeric variable
-  num_var2 <- input$num_second
-  slider_vals2 <- input$num_second_slider
-  data <- data %>%
-    filter(.data[[num_var2]] >= slider_vals2[1],
-           .data[[num_var2]] <= slider_vals2[2])
-
-  data
-})
  
+# Start with the full dataset
+  
 #subsetting data if they click on subset button
-active_data <- eventReactive(input$subset_btn, {
-  req(input$num_first_slider, input$num_second_slider)
-  data <- isolate({
-    mysample |>
-      filter(
-        #filter categorical
-        Region %in% input$cat_region,
-        Segment %in% input$cat_segment
-      ) |>
-      #filter based on first slider
+active_data <- reactive({
+# Check if button has been clicked 
+  if (input$subset_btn == 0) {
+   my_sample 
+  #filter if the button has not been subset
+  }else {
+      isolate({
+      my_sample |>
         filter(
+          Region %in% input$cat_region,
+          Segment %in% input$cat_segment,
           .data[[input$num_first]] >= input$num_first_slider[1],
-          .data[[input$num_first]] <= input$num_first_slider[2]
-        ) |>
-      #filter based on second slider
-        filter(
+          .data[[input$num_first]] <= input$num_first_slider[2],
           .data[[input$num_second]] >= input$num_second_slider[1],
           .data[[input$num_second]] <= input$num_second_slider[2]
         )
     })
-
-  data
+  }
 })
 #controls for them to explore the data on the explore tab
 output$explore_controls <- renderUI({
