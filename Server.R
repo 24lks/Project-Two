@@ -12,7 +12,7 @@ library(bslib)
 library(shinycssloaders)
 
 # Define server
-server<-function(input, output, session) {
+function(input, output, session) {
   
   # Dynamic slider based on firstnumeric variable
   output$num_first_slider <- renderUI({
