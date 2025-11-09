@@ -1,7 +1,8 @@
 ---
 title: "Project Two"
-format: html
-editor: visual
+format: 
+  html:
+    runtime: shiny
 ---
 
 ## Quarto
@@ -875,6 +876,8 @@ output$num_tables<-renderTable({
 
 shinyApp(ui = ui, server = server)
 ```
-  
-# Run the application 
-
+#setting up the app on shing
+```{r}
+library(rsconnect)
+rsconnect::deployApp('/Users/LaurieShort/Project Two')
+```
