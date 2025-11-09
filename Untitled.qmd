@@ -223,7 +223,7 @@ my_sample <- read_excel("project2 (1).xls")
 
 # Define UI
 ui <- fluidPage(
-  "Add a title panel here!",
+  "Welcome to my app!",
   sidebarLayout(
     sidebarPanel(
       h2("Select Region:"),
@@ -325,13 +325,9 @@ ui <- fluidPage(
             choices = c("Table" = "table", "Plot" = "plot"),
             selected = NULL
           ),
-# Dynamic UI for table/plot controls (radio buttons, checkboxes, etc.)
+# Dynamic UI for table/plot controls
 uiOutput("explore_controls"),
 
-
-# Placeholders for conditional "Group by" selectors
-uiOutput("cat_group_ui"),  # Only appears if categorical stacked bar is selected
-uiOutput("num_group_ui"),  # Only appears if numeric boxplot is selected
 
 # Output placeholders
   # Categorical tables
@@ -429,41 +425,31 @@ server <- function(input, output, session) {
   data
 })
  
-#this is our data we want the use to explore, it will subset the specific data they 
-active_data <- reactive({
-  data <- my_sample
-
-  # Only subset when the button is pressed
-  if (input$subset_btn > 0) {
-    # Categorical subsetting
-    data <- data %>%
+#subsetting data if they click on subset button
+active_data <- eventReactive(input$subset_btn, {
+  req(input$num_first_slider, input$num_second_slider)
+  data <- isolate({
+    mysample |>
       filter(
+        #filter categorical
         Region %in% input$cat_region,
         Segment %in% input$cat_segment
-      )
-    
-    # Numeric subsetting for first variable
-    if (!is.null(input$num_first_slider)) {
-      data <- data %>%
+      ) |>
+      #filter based on first slider
         filter(
           .data[[input$num_first]] >= input$num_first_slider[1],
           .data[[input$num_first]] <= input$num_first_slider[2]
-        )
-    }
-    
-    # Numeric subsetting for second variable
-    if (!is.null(input$num_second_slider)) {
-      data <- data %>%
+        ) |>
+      #filter based on second slider
         filter(
           .data[[input$num_second]] >= input$num_second_slider[1],
           .data[[input$num_second]] <= input$num_second_slider[2]
         )
-    }
-  }
+    })
 
   data
 })
-
+#controls for them to explore the data on the explore tab
 output$explore_controls <- renderUI({
   req(input$summary_type, input$explore_options)
 
@@ -713,8 +699,7 @@ output$hist <- renderPlot({
   }
 })
 
-
-#output$box<-renderPlot({
+#creating a box plot if they select that
   
 output$box<-renderPlot({
   req(active_data())
@@ -744,7 +729,7 @@ output$box<-renderPlot({
   
   
 }) 
-    
+#creating a density plot if they select that
 output$density<-renderPlot({
   req(active_data())
   req(input$summary_type == "num",
@@ -772,6 +757,7 @@ output$density<-renderPlot({
   }
   
 })      
+#giving a table that summarizes numeric data
 output$num_tables<-renderTable({
    req(active_data(), 
       input$summary_type == "num", 
