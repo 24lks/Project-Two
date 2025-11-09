@@ -1,0 +1,489 @@
+library(shiny)
+library(shinyalert)
+library(tidyverse)
+library(readxl)
+library(ggpubr)
+library(tidyr)
+library(tidyverse)
+library(tidyplots)
+library(readxl)
+library(DT)
+library(bslib)
+library(shinycssloaders)
+
+# Define server
+server<-function(input, output, session) {
+  
+  # Dynamic slider based on firstnumeric variable
+  output$num_first_slider <- renderUI({
+    req(input$num_first)
+    if (input$num_first == "Sales") {
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = 0, max = 22700, value = c(0, 22700))
+    } else if (input$num_first == "Quantity") {
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = 1, max = 14, value = c(1, 14))
+    } else if (input$num_first == "Discount") {
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = 0, max = 0.8, value = c(0, 0.8))
+    } else {  # Profit
+      sliderInput("num_first_slider",
+                  label = "Set value range",
+                  min = -6600, max = 8400, value = c(-6600, 8400))
+    }
+  })
+  
+  
+  # Dynamic slider based on second numeric variable
+  output$num_second_slider <- renderUI({
+    req(input$num_second)
+    if (input$num_second == "Sales") {
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = 0, max = 22700, value = c(0, 22700))
+    } else if (input$num_second == "Quantity") {
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = 1, max = 14, value = c(1, 14))
+    } else if (input$num_second == "Discount") {
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = 0, max = 0.8, value = c(0, 0.8))
+    } else {  # Profit
+      sliderInput("num_second_slider",
+                  label = "Set value range",
+                  min = -6600, max = 8400, value = c(-6600, 8400))
+    }
+  })
+  
+  
+  #subsetting data if they click on subset button
+  active_data <- reactive({
+    # Check if button has been clicked 
+    if (input$subset_btn == 0) {
+      my_sample 
+      #filter if the button has not been subset
+    }else {
+      isolate({
+        my_sample |>
+          filter(
+            Region %in% input$cat_region,
+            Segment %in% input$cat_segment,
+            .data[[input$num_first]] >= input$num_first_slider[1],
+            .data[[input$num_first]] <= input$num_first_slider[2],
+            .data[[input$num_second]] >= input$num_second_slider[1],
+            .data[[input$num_second]] <= input$num_second_slider[2]
+          )
+      })
+    }
+  })
+  
+  #data download tab
+  
+  #making the table
+  output$data_table <- DT::renderDataTable({
+    req(active_data())
+    DT::datatable(active_data())
+  })
+  
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste('sales-data', Sys.Date(), '.csv', sep='')
+    },
+    content = function(file) {
+      write.csv(active_data(), row.names = FALSE)
+    }
+  )
+  
+  
+  #controls for them to explore the data on the explore tab
+  output$explore_controls <- renderUI({
+    req(input$summary_type, input$explore_options)
+    
+    cat_vars <- c("Ship Mode", "Segment", "Country", "City", 
+                  "State", "Postal Code", "Region", 
+                  "Category", "Sub-Category")
+    num_vars <- c("Sales", "Quantity", "Discount", "Profit")
+    
+    ui_list <- list()
+    
+    # Categorical or numeric selection
+    if (input$summary_type == "cat") {
+      ui_list <- append(ui_list, list(
+        selectInput("cat_var", "Choose categorical variable:",
+                    choices = cat_vars, selected = "Region"),
+        selectInput("cat_group", "Optional grouping variable:",
+                    choices = c("None", cat_vars), selected = "None")
+      ))
+    } else if (input$summary_type == "num") {
+      ui_list <- append(ui_list, list(
+        selectInput("num_var", "Choose numeric variable:",
+                    choices = num_vars, selected = "Sales"),
+        selectInput("num_group", "Optional grouping variable:",
+                    choices = c("None", cat_vars), selected = "None")
+      ))
+    }
+    
+    # Table / Plot type options
+    if (input$explore_options == "table") {
+      if (input$summary_type == "cat") {
+        ui_list <- append(ui_list, list(
+          checkboxGroupInput("table_type_cat", "Choose type(s) of table:",
+                             choices = c("One-way table" = "one_way",
+                                         "Two-way table" = "two_way"),
+                             selected = "one_way")
+        ))
+      } 
+    } else if (input$explore_options == "plot") {
+      if (input$summary_type == "cat") {
+        ui_list <- append(ui_list, list(
+          checkboxGroupInput("cat_plot_type", "Choose plot type:",
+                             choices = c("Bar Chart" = "bar",
+                                         "Stacked Bar Chart" = "stacked",
+                                         "Pie Chart"="pie"),
+                             selected = "bar")
+        )
+        )
+      } else if (input$summary_type == "num") {
+        ui_list <- append(ui_list, list(
+          checkboxGroupInput("num_plot_type", "Choose plot type:",
+                             choices = c("Histogram" = "hist",
+                                         "Boxplot" = "box",
+                                         "Density Plot" = "density"),
+                             selected = "hist")
+        ))
+      }
+    }
+    
+    do.call(tagList, ui_list)
+  })
+  
+  
+  #making a one way table if they chose categorical, table, and one way 
+  output$oneway_table <- renderTable({
+    #making sure all the things are selected we need
+    req(active_data())
+    req(input$summary_type == "cat",
+        input$explore_options == "table",
+        "one_way" %in% input$table_type_cat)
+    
+    data <- active_data()
+    
+    #making one way table
+    data |>
+      drop_na(.data[[input$cat_var]]) |>
+      group_by(.data[[input$cat_var]]) |>
+      summarize(count = n())
+    
+    
+  })
+  
+  
+  #making a two way table if they chose categorical, table, and two way using their variable and grouping variable
+  
+  output$two_way_table <- renderTable({
+    #requiring the inputs we need
+    req(active_data())
+    req(input$summary_type == "cat",
+        input$explore_options == "table",
+        "two_way" %in% input$table_type_cat)
+    
+    #makes the user select a grouping variable if they want to make a two way table
+    
+    if (is.null(input$cat_group) || input$cat_group == "None") {
+      return(data.frame(Message = "Need to select an optional grouping in order to have a two-way table!"))
+    }
+    
+    #creating the two way table and using pivot wider so it looks nicer
+    data <- active_data()
+    
+    data |>
+      drop_na(.data[[input$cat_var]], .data[[input$cat_group]]) |>
+      group_by(.data[[input$cat_var]], .data[[input$cat_group]]) |>
+      summarize(count = n())|>
+      tidyr::pivot_wider(
+        names_from = .data[[input$cat_group]],  
+        values_from = count,                           
+        values_fill = 0                                
+      ) |>
+      as.data.frame()       
+  }) 
+  
+  
+  
+  #fixing the format of the categorical plots, so they don't hold space on page if only one is selected 
+  output$cat_plots <- renderUI({
+    req(input$explore_options == "plot")
+    req(input$cat_plot_type)
+    
+    # If no data, return a placeholder div
+    data <- active_data() 
+    if(nrow(data) == 0){
+      return(div("No data available for this selection", style = "color:red; font-weight:bold;"))
+    }
+    
+    plot_list <- lapply(input$cat_plot_type, function(plot_type) {
+      if (plot_type == "pie") {
+        plotOutput("pie", height = "400px")
+      } else if (plot_type == "stacked") {
+        plotOutput("bar_stacked", height = "400px")
+      } else if (plot_type == "bar") {
+        plotOutput("single_bar", height = "400px")
+      }
+    })
+    
+    do.call(tagList, plot_list)
+  })
+  
+  #creating a bar graph if they want a categorical plot
+  
+  output$single_bar <- renderPlot({ 
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(active_data()) 
+    req(input$summary_type == "cat", input$explore_options == "plot", 
+        "bar" %in% input$cat_plot_type)
+    
+    
+    data <-active_data() 
+    
+    data |> 
+      drop_na(.data[[input$cat_var]])|> 
+      group_by((.data[[input$cat_var]]))|> count(.data[[input$cat_var]]) |> ggplot(aes(x = .data[[input$cat_var]], y = n)) + 
+      geom_bar(stat = "identity", fill = "steelblue") + 
+      labs( x = input$cat_var, y = "Count" ) + 
+      theme_minimal()
+    
+  })
+  #creating a stacked graph if they want a categorical plot that is grouped
+  
+  output$bar_stacked <- renderPlot({
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(active_data())
+    req(input$summary_type == "cat",
+        input$explore_options == "plot",
+        "stacked" %in% input$cat_plot_type)
+    
+    
+    #displays a message like for the tables, so if they want a stacked bar chart they have to have a grouping variable selected
+    if (is.null(input$cat_group) || input$cat_group == "None") {
+      plot.new()
+      text(0.5, 0.5, "Please select a grouping variable to display a stacked bar graph", cex = 1.2)
+      return()
+    }
+    
+    data <-active_data()
+    data |>
+      count(.data[[input$cat_var]], .data[[input$cat_group]]) |>
+      ggplot(aes(x = .data[[input$cat_var]], y = n, fill = .data[[input$cat_group]])) +
+      geom_bar(stat = "identity") +
+      labs(x = input$cat_var, y = "Count", fill = input$cat_group) +
+      theme_minimal()
+    
+    
+  })
+  
+  #creating a pie graph 
+  
+  output$pie <- renderPlot({
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(active_data())
+    req(input$summary_type == "cat",
+        input$explore_options == "plot",
+        "pie" %in% input$cat_plot_type)
+    
+    data <-active_data()
+    data |>
+      drop_na(.data[[input$cat_var]]) |>
+      count(.data[[input$cat_var]]) |>
+      tidyplot(
+        y = n, color = .data[[input$cat_var]])|>
+      add_pie()
+    
+  }, height = 400)
+  
+  
+  
+  
+  
+  
+  #fixing the format of the numerical plots, so they don't hold space on page if only one is selected 
+  output$num_plots <- renderUI({
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(input$explore_options == "plot")
+    req(input$num_plot_type)
+    
+    num_plot_list <- lapply(input$num_plot_type, function(num_plot_type) {
+      if (num_plot_type == "hist") {
+        plotOutput("hist", height = "400px")
+      } else if (num_plot_type == "box") {
+        plotOutput("box", height = "400px")
+      } else if (num_plot_type == "density") {
+        plotOutput("density", height = "400px")
+      }
+    })
+    
+    do.call(tagList, num_plot_list)
+  })
+  
+  
+  
+  
+  #creating a histogram
+  output$hist <- renderPlot({
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(active_data())
+    req(input$summary_type == "num",
+        input$explore_options == "plot",
+        "hist" %in% input$num_plot_type)
+    data <- active_data()
+    
+    # Determine the fill variable
+    fill_var <- input$num_group
+    if (is.null(fill_var) || fill_var == "None") {
+      fill_var <- NULL
+    }
+    
+    # Build histogram
+    if (is.null(fill_var)) {
+      ggplot(data, aes(x = .data[[input$num_var]])) +
+        geom_histogram(alpha = 0.5, bins = 15, fill = "steelblue") +
+        labs(x = input$num_var, y = "Count") +
+        theme_minimal()
+    } else {
+      ggplot(data, aes(x = .data[[input$num_var]], fill = !!sym(fill_var))) +
+        geom_histogram(alpha = 0.5, position = "dodge", bins = 15) +
+        labs(x = input$num_var, y = "Count", fill = fill_var) +
+        theme_minimal()
+    }
+  })
+  
+  #creating a box plot if they select that
+  
+  output$box<-renderPlot({
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(active_data())
+    req(input$summary_type == "num",
+        input$explore_options == "plot",
+        "box" %in% input$num_plot_type)
+    data <- active_data()
+    
+    # Determine the fill variable
+    fill_var <- input$num_group
+    if (is.null(fill_var) || fill_var == "None") {
+      fill_var <- NULL
+    }
+    
+    # Build box plot
+    if (is.null(fill_var)) {
+      ggplot(data, aes(y = .data[[input$num_var]])) +
+        geom_boxplot(fill = "steelblue") +
+        labs( y = input$num_var) +
+        theme_minimal()
+    } else {
+      ggplot(data, aes(x = .data[[input$num_group]], y = .data[[input$num_var]], fill =  !!sym(fill_var))) +
+        geom_boxplot()+
+        labs(x = input$num_group, y = input$num_var, fill = fill_var) +
+        theme_minimal()
+    }
+    
+    
+  }) 
+  #creating a density plot if they select that
+  output$density<-renderPlot({
+    data <- active_data()
+    if(nrow(data) == 0){
+      plot.new()
+      text(0.5, 0.5, "No data available", cex = 1.2)
+      return()
+    }
+    req(active_data())
+    req(input$summary_type == "num",
+        input$explore_options == "plot",
+        "density" %in% input$num_plot_type)
+    data <- active_data()
+    
+    # Determine the fill variable
+    fill_var <- input$num_group
+    if (is.null(fill_var) || fill_var == "None") {
+      fill_var <- NULL
+    }
+    
+    # Build density plot
+    if (is.null(fill_var)) {
+      ggplot(data, aes(x = .data[[input$num_var]])) +
+        geom_density(alpha = 0.5, fill = "steelblue") +
+        labs(x = input$num_var, y = "Count") +
+        theme_minimal()
+    } else {
+      ggplot(data, aes(x = .data[[input$num_var]], fill = !!sym(fill_var))) +
+        geom_density(alpha = 0.5, position = "dodge") +
+        labs(x = input$num_var, y = "Count", fill = fill_var) +
+        theme_minimal()
+    }
+    
+  })      
+  #giving a table that summarizes numeric data
+  output$num_tables<-renderTable({
+    req(active_data(), 
+        input$summary_type == "num", 
+        input$explore_options == "table")
+    
+    
+    data <- active_data() 
+    
+    # If grouping is selected, group first
+    if (!is.null(input$num_group) && input$num_group != "None") {
+      data <- data |> group_by(!!sym(input$num_group))
+    }
+    
+    summary_tbl <- data |>
+      summarise(
+        Mean = mean(.data[[input$num_var]], na.rm = TRUE),
+        Median = median(.data[[input$num_var]], na.rm = TRUE),
+        SD = sd(.data[[input$num_var]], na.rm = TRUE),
+        Min = min(.data[[input$num_var]], na.rm = TRUE),
+        Max = max(.data[[input$num_var]], na.rm = TRUE)
+      )
+    summary_tbl |>
+      rename_with(~ paste(input$num_var, ., sep = " "), .cols = c("Mean", "Median", "SD", "Min", "Max"))
+  })
+  
+ 
+  
+  
+}
+

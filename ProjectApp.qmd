@@ -5,7 +5,6 @@ format:
     runtime: shiny
 ---
 
-
 ```{r}
 library(shiny)
 library(shinyalert)
@@ -640,14 +639,7 @@ output$num_tables<-renderTable({
 }
 
 
-shinyApp(ui = ui, server = server)
-library(rsconnect)
-rsconnect::deployApp('/Users/LaurieShort/Project Two')
-```
 
-```{r}
-library(rsconnect)
-rsconnect::deployApp('/Users/LaurieShort/Project Two')
 ```
 
 
