@@ -15,6 +15,9 @@ library(tidyverse)
 library(tidyplots)
 library(readxl)
 library(DT)
+library(bslib)
+install.packages("shinycssloadersshinycssloaders")
+library(shinycssloaders)
 project2_1_ <- read_excel("project2 (1).xls")
 View(project2_1_)
 str(project2_1_)
@@ -249,11 +252,14 @@ library(shinyalert)
 library(tidyverse)
 library(readxl)
 
+
+
 # Load sample data outside the UI
 my_sample <- read_excel("project2 (1).xls")
 
 # Define UI
 ui <- fluidPage(
+  theme = bs_theme(preset = "minty"),
   "Welcome to my app!",
   sidebarLayout(
     sidebarPanel(
@@ -338,7 +344,7 @@ ui <- fluidPage(
           title = "Data Download",
           h3("Dataset on Online Orders of a US Superstore from 2014-2018."),
             DT::dataTableOutput("data_table"),
-             downloadButton("download_data", "Download Current Data")
+             downloadButton("downloadData", "Download Current Data")
           
     
         ),
@@ -377,11 +383,11 @@ uiOutput("num_group_ui"),
   tableOutput("two_way_table"),
 
   # Categorical plots
-uiOutput("cat_plots"), 
+uiOutput("cat_plots") |> withSpinner(),
 
 
   # Numerical plots
-uiOutput("num_plots"), 
+uiOutput("num_plots") |> withSpinner(), 
 
   # Numerical plots
 uiOutput("num_tables") 
@@ -440,7 +446,6 @@ server <- function(input, output, session) {
     }
   })
  
-# Start with the full dataset
   
 #subsetting data if they click on subset button
 active_data <- reactive({
@@ -462,6 +467,26 @@ active_data <- reactive({
     })
   }
 })
+
+#data download tab
+
+#making the table
+output$data_table <- DT::renderDataTable({
+  req(active_data())
+  DT::datatable(active_data())
+})
+
+
+output$downloadData <- downloadHandler(
+filename = function() {
+ paste('sales-data', Sys.Date(), '.csv', sep='')
+   },
+  content = function(file) {
+    write.csv(active_data(), row.names = FALSE)
+  }
+)
+
+
 #controls for them to explore the data on the explore tab
 output$explore_controls <- renderUI({
   req(input$summary_type, input$explore_options)
@@ -582,6 +607,12 @@ output$cat_plots <- renderUI({
   req(input$explore_options == "plot")
   req(input$cat_plot_type)
   
+    # If no data, return a placeholder div
+  data <- active_data() 
+if(nrow(data) == 0){
+  return(div("No data available for this selection", style = "color:red; font-weight:bold;"))
+}
+  
   plot_list <- lapply(input$cat_plot_type, function(plot_type) {
     if (plot_type == "pie") {
       plotOutput("pie", height = "400px")
@@ -598,6 +629,12 @@ output$cat_plots <- renderUI({
 #creating a bar graph if they want a categorical plot
 
 output$single_bar <- renderPlot({ 
+   data <- active_data()
+  if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(active_data()) 
   req(input$summary_type == "cat", input$explore_options == "plot", 
       "bar" %in% input$cat_plot_type)
@@ -616,6 +653,12 @@ output$single_bar <- renderPlot({
 #creating a stacked graph if they want a categorical plot that is grouped
 
 output$bar_stacked <- renderPlot({
+   data <- active_data()
+  if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(active_data())
   req(input$summary_type == "cat",
       input$explore_options == "plot",
@@ -643,6 +686,12 @@ output$bar_stacked <- renderPlot({
 #creating a pie graph 
 
 output$pie <- renderPlot({
+   data <- active_data()
+   if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(active_data())
   req(input$summary_type == "cat",
       input$explore_options == "plot",
@@ -665,6 +714,12 @@ output$pie <- renderPlot({
 
 #fixing the format of the numerical plots, so they don't hold space on page if only one is selected 
 output$num_plots <- renderUI({
+   data <- active_data()
+  if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(input$explore_options == "plot")
   req(input$num_plot_type)
   
@@ -686,6 +741,12 @@ output$num_plots <- renderUI({
 
 #creating a histogram
 output$hist <- renderPlot({
+   data <- active_data()
+  if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(active_data())
   req(input$summary_type == "num",
       input$explore_options == "plot",
@@ -715,6 +776,12 @@ output$hist <- renderPlot({
 #creating a box plot if they select that
   
 output$box<-renderPlot({
+   data <- active_data()
+  if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(active_data())
   req(input$summary_type == "num",
       input$explore_options == "plot",
@@ -744,6 +811,12 @@ output$box<-renderPlot({
 }) 
 #creating a density plot if they select that
 output$density<-renderPlot({
+   data <- active_data()
+    if(nrow(data) == 0){
+    plot.new()
+    text(0.5, 0.5, "No data available", cex = 1.2)
+    return()
+  }
   req(active_data())
   req(input$summary_type == "num",
       input$explore_options == "plot",
